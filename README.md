@@ -9,9 +9,10 @@
   <img alt="Kotlin and Jetpack Compose" src="https://img.shields.io/badge/Kotlin-Compose-7f52ff?style=for-the-badge&logo=kotlin&logoColor=white">
 </p>
 
-<p align="center"><b>Foldman turns a folding phone into a cassette player.</b><br>
-Folded, it's a portable player in your hand. Unfold it and it lays down into a deck.<br>
-Play your own music files, or drive YT Music and Apple Music from real piano keys.</p>
+<p align="center"><b>Foldman turns a folding phone into a Sony Walkman WM-RX707 cassette player.</b><br>
+Folded on a 21:9 cover screen (like the Galaxy Z Fold 8 Ultra), it's a sideways horizontal WM-RX707 with feather-touch spun-chrome logic controls, a curved hammer-tone gunmetal control pod, and a transparent Sony MA-XG46 Metal tape.<br>
+Unfold it and it lays down into a full stereo deck with twin VU meters, EX DBB bass boost, and AVLS.<br>
+Stream directly from your <b>Plex Media Server</b>, browse and control <b>Spotify</b>, play local music files, or drive YT Music and Apple Music.</p>
 
 <p align="center">
   <a href="https://github.com/deveshrai/Foldman/wiki"><b>📖 Wiki</b></a> ·
@@ -65,10 +66,12 @@ Foldman reads the hinge and rebuilds itself for each posture, without stopping t
   <br><sub>The deck on a real Z Fold 8: needles swinging, the counter rolling, FF winding the tape on.</sub>
 </p>
 
-## Three ways to load a tape
+## Five ways to load a tape
 
 | | Source | How it works |
 | --- | --- | --- |
+| 🟠 | **Plex Server** | Connect directly to your Plex Media Server (`https://plex.yourserver.com` or any Plex URL + `X-Plex-Token`). Browse **Albums**, **Recent**, **Popular**, and **Playlists** with A–Z jump and search. Streams directly through Foldman's Media3 engine so the **twin VU meters follow the real audio**, **EX DBB** and **AVLS** process the sound in real time, and **12× REVIEW/CUE** winds continuously across tracks. |
+| 🟢 | **Spotify** | Drive the Spotify Android app via media-session control out of the box, or sign in via **OAuth 2.0 PKCE** (`foldman://spotify-callback`) to browse your Spotify **Playlists** and **Saved Albums** directly inside Foldman's Tape Shelf and Library Band. |
 | 🗂 | **Local folder** | Pick any folder on the phone. MP3, FLAC, M4A, OGG, Opus, WAV and more play through Media3 in the background, with the system media controls and headphone keys. Album art comes from the files' embedded art or a `cover.jpg` / `folder.png` beside them, and each sub-folder becomes an album. |
 | 🍎 | **Apple Music** | Sign in through Apple's MusicKit, browse your library playlists inside Foldman, and stream them in-app. Apple's player runs in its own process: if Apple's native code crashes, the music picks up again on the same song a few seconds later, and Foldman never closes. |
 | ▶️ | **YT Music** (and Apple Music without MusicKit) | Foldman drives the app's own media session: the keys, REW/FF, skip, artwork on the label and the queue all work on it, and you pick what to play in the app itself. |

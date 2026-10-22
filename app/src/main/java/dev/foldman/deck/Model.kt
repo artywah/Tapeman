@@ -2,11 +2,19 @@ package dev.foldman.deck
 
 import android.graphics.Bitmap
 import android.net.Uri
+import dev.foldman.plex.PlexAlbum
+import dev.foldman.plex.PlexClient
+import dev.foldman.plex.PlexSectionTab
+import dev.foldman.spotify.SpotifyCollection
+import dev.foldman.spotify.SpotifyTab
+import dev.foldman.spotify.SpotifyTrack
 import kotlinx.coroutines.flow.StateFlow
 
 /** Where the tape in the deck comes from. */
 enum class Source(val label: String, val packageName: String?) {
     LOCAL("Local folder", null),
+    PLEX("Plex Server", null),
+    SPOTIFY("Spotify", "com.spotify.music"),
     YT_MUSIC("YT Music", "com.google.android.apps.youtube.music"),
     APPLE_MUSIC("Apple Music", "com.apple.android.music"),
 }
@@ -27,6 +35,7 @@ sealed interface SourceStatus {
     data object NotInstalled : SourceStatus
     data object NeedsDeveloperToken : SourceStatus
     data object NeedsAppleSignIn : SourceStatus
+    data object NeedsPlexAlbum : SourceStatus
 }
 
 /** What the tape shelf knows about the user's Apple Music library (MusicKit sign-in + Apple Music API). */
@@ -44,6 +53,36 @@ data class AppleUi(
     val message: String? = null,
 )
 
+/** What the tape shelf & library band know about the user's Plex Music Server. */
+data class PlexUi(
+    val serverUrl: String = PlexClient.DEFAULT_URL,
+    val token: String = PlexClient.DEFAULT_TOKEN,
+    val libraryName: String = PlexClient.DEFAULT_LIBRARY,
+    val tab: PlexSectionTab = PlexSectionTab.ALL,
+    val searchQuery: String = "",
+    val selectedLetter: String? = null,
+    val items: List<PlexAlbum> = emptyList(),
+    val openAlbum: PlexAlbum? = null,
+    val tracks: List<LocalTrack> = emptyList(),
+    val loadedAlbumTitle: String? = null,
+    val loading: Boolean = false,
+    val editingSettings: Boolean = false,
+    val message: String? = null,
+)
+
+/** What the tape shelf & library band know about the user's Spotify library (OAuth PKCE + Web API). */
+data class SpotifyUi(
+    val clientId: String = "",
+    val signedIn: Boolean = false,
+    val tab: SpotifyTab = SpotifyTab.PLAYLISTS,
+    val collections: List<SpotifyCollection> = emptyList(),
+    val openCollection: SpotifyCollection? = null,
+    val tracks: List<SpotifyTrack> = emptyList(),
+    val loading: Boolean = false,
+    val editingClient: Boolean = false,
+    val message: String? = null,
+)
+
 data class LocalTrack(
     val uri: Uri,
     val title: String,
@@ -52,7 +91,7 @@ data class LocalTrack(
     val coverUri: Uri?,
 )
 
-/** A song in the play queue: a local file (id = index) or another app's queue item. */
+/** A song in the play queue: a local file (id = index), a Plex track, or another app's queue item. */
 data class QueueEntry(
     val id: Long,
     val title: String,
@@ -84,7 +123,7 @@ data class BackendState(
     val currentQueueId: Long = -1,
 )
 
-/** One tape source: the local Media3 player, or another app's media session. */
+/** One tape source: the local/Plex Media3 player, or another app's media session. */
 interface DeckBackend {
     val state: StateFlow<BackendState>
     fun positionMs(): Long

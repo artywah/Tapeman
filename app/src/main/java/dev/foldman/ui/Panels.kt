@@ -23,8 +23,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -56,27 +56,26 @@ import dev.foldman.deck.Source
 import dev.foldman.deck.SourceStatus
 import dev.foldman.playback.Artwork
 
-private val Title = TextStyle(color = Color(0xFFF4EFE9), fontSize = 15.sp, fontWeight = FontWeight.Medium)
-private val Sub = TextStyle(color = Color(0xFFA79C92), fontSize = 12.sp)
-private val Header = TextStyle(color = Color(0xFFF4EFE9), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+private val Title = TextStyle(color = Color(0xFFF0F2F5), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+private val Sub = TextStyle(color = Color(0xFF9DA2AA), fontSize = 11.5.sp)
+private val Header = TextStyle(color = Color(0xFFF0F2F5), fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold)
 
-/** Smoked dark glass the library and now-playing sit behind on the unfolded screen. */
+/** Smoked charcoal glass panel matching the Sony WM-RX707 aesthetic. */
 fun Modifier.glassPanel(corner: Dp = 18.dp): Modifier = drawWithCache {
     val r = CornerRadius(corner.toPx())
-    val fill = Brush.verticalGradient(listOf(Color(0xFF2E2622), Color(0xFF1E1916)))
+    val fill = Brush.verticalGradient(listOf(Color(0xFF232529), Color(0xFF16171A)))
     onDrawBehind {
-        drawRoundRect(Color.Black.copy(alpha = 0.5f), topLeft = Offset(0f, 3f), cornerRadius = r)
+        drawRoundRect(Color.Black.copy(alpha = 0.6f), topLeft = Offset(0f, 3f), cornerRadius = r)
         drawRoundRect(fill, cornerRadius = r)
-        drawRoundRect(Color.White.copy(alpha = 0.08f), cornerRadius = r, style = Stroke(1.5f))
+        drawRoundRect(Color.White.copy(alpha = 0.09f), cornerRadius = r, style = Stroke(1.5f))
     }
 }
 
-/** Library band: sources, then albums (folders) or the streaming app's state, then the queue. */
+/** Library band: sources, then albums/playlists/server browser, then the active queue. */
 @Composable
 fun LibraryBand(ui: DeckUi, actions: ShelfActions, onPlayQueue: (Long) -> Unit, modifier: Modifier = Modifier) {
     Row(modifier.glassPanel().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        // Scrolls if the panel is ever too short for every source.
-        Column(Modifier.weight(0.3f).fillMaxHeight().verticalScroll(rememberScrollState())) {
+        Column(Modifier.weight(0.28f).fillMaxHeight().verticalScroll(rememberScrollState())) {
             Text("Sources", style = Header)
             Spacer(Modifier.height(6.dp))
             Source.entries.forEach { s ->
@@ -85,12 +84,12 @@ fun LibraryBand(ui: DeckUi, actions: ShelfActions, onPlayQueue: (Long) -> Unit, 
                     Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(10.dp))
-                        .background(if (selected) Color.White.copy(alpha = 0.09f) else Color.Transparent)
+                        .background(if (selected) Color.White.copy(alpha = 0.10f) else Color.Transparent)
                         .clickable { actions.selectSource(s) }
                         .padding(horizontal = 6.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    SourceTile(s, Modifier.size(30.dp))
+                    SourceTile(s, Modifier.size(28.dp))
                     Spacer(Modifier.width(10.dp))
                     Column(Modifier.weight(1f)) {
                         Text(s.label, style = Title, maxLines = 1)
@@ -99,18 +98,38 @@ fun LibraryBand(ui: DeckUi, actions: ShelfActions, onPlayQueue: (Long) -> Unit, 
                 }
             }
         }
-        Column(Modifier.weight(0.36f).fillMaxHeight()) {
+        Column(Modifier.weight(0.40f).fillMaxHeight()) {
             when (ui.source) {
                 Source.LOCAL -> Albums(ui, actions)
+                Source.PLEX -> {
+                    Text(
+                        ui.plex.openAlbum?.title ?: "Plex · ${ui.plex.libraryName}",
+                        style = Header,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    PlexBrowser(ui.plex, actions.plex)
+                }
+                Source.SPOTIFY -> {
+                    Text(
+                        ui.spotify.openCollection?.name ?: "Spotify",
+                        style = Header,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    SpotifyBrowser(ui.spotify, actions.spotify, fallback = { RemoteState(ui, actions, showHeader = false) })
+                }
                 Source.APPLE_MUSIC -> {
                     Text(ui.apple.openPlaylist?.let { "Playlist" } ?: "Playlists", style = Header)
                     Spacer(Modifier.height(8.dp))
                     AppleBrowser(ui.apple, actions.apple, fallback = { RemoteState(ui, actions, showHeader = false) })
                 }
-                else -> RemoteState(ui, actions)
+                Source.YT_MUSIC -> RemoteState(ui, actions)
             }
         }
-        Column(Modifier.weight(0.34f).fillMaxHeight()) {
+        Column(Modifier.weight(0.32f).fillMaxHeight()) {
             Text("Queue", style = Header)
             Spacer(Modifier.height(8.dp))
             QueueList(ui, onPlayQueue)
@@ -119,8 +138,13 @@ fun LibraryBand(ui: DeckUi, actions: ShelfActions, onPlayQueue: (Long) -> Unit, 
 }
 
 private fun statusLine(ui: DeckUi): String = when (val s = ui.status) {
-    SourceStatus.Ready -> if (ui.source == Source.LOCAL) "${ui.tracks.size} songs" else "Connected"
+    SourceStatus.Ready -> when (ui.source) {
+        Source.LOCAL -> "${ui.tracks.size} songs"
+        Source.PLEX -> ui.plex.loadedAlbumTitle ?: "${ui.tracks.size} songs"
+        else -> "Connected"
+    }
     SourceStatus.NeedsFolder -> "Choose a folder"
+    SourceStatus.NeedsPlexAlbum -> if (ui.plex.loading) "Connecting…" else "Pick an album"
     is SourceStatus.Scanning -> "Scanning… ${s.found}"
     SourceStatus.EmptyFolder -> "No music found"
     SourceStatus.NeedsAccess -> "Needs notification access"
@@ -132,15 +156,15 @@ private fun statusLine(ui: DeckUi): String = when (val s = ui.status) {
 
 @Composable
 private fun SourceTile(source: Source, modifier: Modifier) {
+    val accent = DeckColors.sourceAccent(source)
     val shell = DeckColors.shell(source)
     Box(
         modifier
             .clip(RoundedCornerShape(7.dp))
-            .background(Brush.linearGradient(listOf(androidx.compose.ui.graphics.lerp(shell, Color.White, 0.25f), shell))),
+            .background(Brush.linearGradient(listOf(androidx.compose.ui.graphics.lerp(shell, accent, 0.35f), shell))),
         contentAlignment = Alignment.Center,
     ) {
-        // A tiny cassette window.
-        Box(Modifier.fillMaxWidth(0.66f).height(9.dp).clip(RoundedCornerShape(3.dp)).background(Color(0xFF1A1714)))
+        Box(Modifier.fillMaxWidth(0.66f).height(9.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFF0E1012)))
     }
 }
 
@@ -160,7 +184,6 @@ private fun Albums(ui: DeckUi, actions: ShelfActions) {
         is SourceStatus.Scanning -> Text("Scanning… ${s.found} songs", style = Sub)
         SourceStatus.EmptyFolder -> Text("No music in that folder.", style = Sub)
         else -> {
-            // Each folder is an album: its first track's index, cover and size.
             val albums = remember(ui.tracks) {
                 ui.tracks.withIndex().groupBy { it.value.folder }.map { (folder, items) ->
                     Triple(folder, items.first(), items.size)
@@ -192,6 +215,7 @@ private fun Albums(ui: DeckUi, actions: ShelfActions) {
 @Composable
 private fun RemoteState(ui: DeckUi, actions: ShelfActions, showHeader: Boolean = true) {
     val app = ui.source.label
+    val accent = DeckColors.sourceAccent(ui.source)
     if (showHeader) {
         Text(app, style = Header)
         Spacer(Modifier.height(8.dp))
@@ -209,10 +233,10 @@ private fun RemoteState(ui: DeckUi, actions: ShelfActions, showHeader: Boolean =
     Spacer(Modifier.height(10.dp))
     Text(
         button.uppercase(),
-        style = Sub.copy(color = Color(0xFF1E1916), fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
+        style = Sub.copy(color = Color(0xFF101214), fontWeight = FontWeight.Bold, letterSpacing = 1.sp),
         modifier = Modifier
             .clip(RoundedCornerShape(50))
-            .background(DeckColors.Accent)
+            .background(accent)
             .clickable(onClick = action)
             .padding(horizontal = 14.dp, vertical = 7.dp),
     )
@@ -220,9 +244,11 @@ private fun RemoteState(ui: DeckUi, actions: ShelfActions, showHeader: Boolean =
 
 @Composable
 private fun QueueList(ui: DeckUi, onPlay: (Long) -> Unit) {
+    val accent = DeckColors.sourceAccent(ui.source)
     if (ui.queue.isEmpty()) {
         val empty = when {
             ui.source == Source.LOCAL -> "Nothing loaded"
+            ui.source == Source.PLEX -> "Pick a Plex album or playlist to load the tape"
             ui.source == Source.APPLE_MUSIC && ui.apple.sdkPlayback -> "Pick a playlist to load the queue"
             else -> "This app doesn't share its queue"
         }
@@ -233,14 +259,20 @@ private fun QueueList(ui: DeckUi, onPlay: (Long) -> Unit) {
     val currentIndex = ui.queue.indexOfFirst { it.id == ui.currentQueueId }
     LaunchedEffect(currentIndex) { if (currentIndex >= 0) list.animateScrollToItem(currentIndex) }
     LazyColumn(state = list) {
-        itemsIndexed(ui.queue, key = { _, q -> q.id }) { _, q ->
-            QueueRow(q, current = q.id == ui.currentQueueId, onClick = { onPlay(q.id) })
+        itemsIndexed(ui.queue, key = { i, q -> "${i}_${q.id}" }) { _, q ->
+            QueueRow(q, current = q.id == ui.currentQueueId, accent = accent, onClick = { onPlay(q.id) })
         }
     }
 }
 
 @Composable
-private fun QueueRow(q: QueueEntry, current: Boolean, onClick: () -> Unit, showArt: Boolean = false) {
+private fun QueueRow(
+    q: QueueEntry,
+    current: Boolean,
+    accent: Color = DeckColors.Accent,
+    onClick: () -> Unit,
+    showArt: Boolean = false,
+) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -258,10 +290,10 @@ private fun QueueRow(q: QueueEntry, current: Boolean, onClick: () -> Unit, showA
             Spacer(Modifier.width(10.dp))
         }
         Column(Modifier.weight(1f)) {
-            Text(q.title, style = Title.copy(color = if (current) DeckColors.Accent else Title.color), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(q.title, style = Title.copy(color = if (current) accent else Title.color), maxLines = 1, overflow = TextOverflow.Ellipsis)
             q.subtitle?.let { Text(it, style = Sub, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         }
-        if (current) Text("▶", style = Sub.copy(color = DeckColors.Accent))
+        if (current) Text("▶", style = Sub.copy(color = accent))
     }
 }
 
@@ -272,12 +304,10 @@ fun UrlThumb(url: String?, modifier: Modifier) = Thumb(null, url?.let(Uri::parse
 @Composable
 private fun Thumb(bitmap: Bitmap?, uri: Uri?, modifier: Modifier) {
     val context = LocalContext.current
-    // produceState keeps its last value when the keys change, so always replace it: a reused row
-    // would otherwise go on showing the previous song's cover.
     val image by produceState<ImageBitmap?>(bitmap?.asImageBitmap(), bitmap, uri) {
         value = bitmap?.asImageBitmap() ?: uri?.let { Artwork.thumbnail(context, it)?.asImageBitmap() }
     }
-    Box(modifier.clip(RoundedCornerShape(6.dp)).background(Color(0xFF3A302A)), contentAlignment = Alignment.Center) {
+    Box(modifier.clip(RoundedCornerShape(6.dp)).background(Color(0xFF2C2F35)), contentAlignment = Alignment.Center) {
         image?.let { Image(it, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
             ?: Text("♪", style = Sub.copy(fontSize = 16.sp))
     }
@@ -286,6 +316,7 @@ private fun Thumb(bitmap: Bitmap?, uri: Uri?, modifier: Modifier) {
 /** Now-playing band: the cover big, what's up next, and liner notes. */
 @Composable
 fun NowPlayingBand(ui: DeckUi, onPlayQueue: (Long) -> Unit, modifier: Modifier = Modifier) {
+    val accent = DeckColors.sourceAccent(ui.source)
     Row(modifier.glassPanel().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Box(
             Modifier
@@ -304,7 +335,7 @@ fun NowPlayingBand(ui: DeckUi, onPlayQueue: (Long) -> Unit, modifier: Modifier =
             val i = ui.queue.indexOfFirst { it.id == ui.currentQueueId }
             val next = if (i >= 0) ui.queue.drop(i + 1).take(4) else emptyList()
             if (next.isEmpty()) Text("End of side A", style = Sub)
-            next.forEach { q -> QueueRow(q, current = false, onClick = { onPlayQueue(q.id) }, showArt = true) }
+            next.forEach { q -> QueueRow(q, current = false, accent = accent, onClick = { onPlayQueue(q.id) }, showArt = true) }
         }
         Column(Modifier.weight(0.5f).fillMaxHeight()) {
             Text("Liner notes", style = Header)
@@ -314,15 +345,18 @@ fun NowPlayingBand(ui: DeckUi, onPlayQueue: (Long) -> Unit, modifier: Modifier =
             if (ui.album.isNotBlank()) Text(ui.album, style = Sub, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(10.dp))
             val details = buildList {
-                add(ui.source.label)
+                add(buildString {
+                    append(ui.source.label)
+                    if (ui.dbbEnabled) append(" · EX DBB")
+                    if (ui.avlsEnabled) append(" · AVLS")
+                })
                 if (ui.trackCount > 0) add("Track ${ui.trackIndex + 1} of ${ui.trackCount}")
                 add("${formatTime(ui.positionMs)} / ${formatTime(ui.durationMs)}")
             }
             details.forEach { Text(it, style = Sub) }
             Spacer(Modifier.weight(1f))
-            // Tape-position hairline.
             Box(Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(Color.White.copy(alpha = 0.1f))) {
-                Box(Modifier.fillMaxWidth(ui.progress).fillMaxHeight().background(DeckColors.Accent))
+                Box(Modifier.fillMaxWidth(ui.progress).fillMaxHeight().background(accent))
             }
         }
     }

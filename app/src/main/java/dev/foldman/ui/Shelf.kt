@@ -55,6 +55,8 @@ class ShelfActions(
     val openApp: () -> Unit,
     val installApp: (Source) -> Unit,
     val apple: AppleActions,
+    val plex: PlexActions,
+    val spotify: SpotifyActions,
 )
 
 /**
@@ -65,16 +67,16 @@ class ShelfActions(
 fun TapeShelf(ui: DeckUi, actions: ShelfActions, modifier: Modifier = Modifier) {
     Column(
         modifier
-            .background(Brush.verticalGradient(listOf(Color(0xFF2A1F17), Color(0xFF1C1510))))
+            .background(Brush.verticalGradient(listOf(Color(0xFF1F2124), Color(0xFF121316))))
             .padding(16.dp),
     ) {
-        Text("TAPES", style = EngravedCaps.copy(color = Color(0xFFB59B80), fontSize = 10.sp, letterSpacing = 3.sp))
-        Spacer(Modifier.height(10.dp))
+        Text("TAPES · SONY WM-RX707", style = EngravedCaps.copy(color = Color(0xFFB8BEC6), fontSize = 10.sp, letterSpacing = 2.5.sp))
+        Spacer(Modifier.height(8.dp))
         Source.entries.forEach { s ->
             TapeSpine(s, inDeck = s == ui.source, onClick = { actions.selectSource(s) })
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(6.dp))
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(6.dp))
         JCard(ui, actions, Modifier.weight(1f).fillMaxWidth())
     }
 }
@@ -82,15 +84,16 @@ fun TapeShelf(ui: DeckUi, actions: ShelfActions, modifier: Modifier = Modifier) 
 @Composable
 private fun TapeSpine(source: Source, inDeck: Boolean, onClick: () -> Unit) {
     val shell = DeckColors.shell(source)
+    val accent = DeckColors.sourceAccent(source)
     Row(
         Modifier
             .fillMaxWidth()
-            .offset(x = if (inDeck) 10.dp else 0.dp)
+            .offset(x = if (inDeck) 8.dp else 0.dp)
             .shadow(if (inDeck) 10.dp else 3.dp, RoundedCornerShape(4.dp))
             .clip(RoundedCornerShape(4.dp))
             .background(Brush.verticalGradient(listOf(lerp(shell, Color.White, 0.15f), shell, lerp(shell, Color.Black, 0.25f))))
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 7.dp),
+            .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -99,22 +102,23 @@ private fun TapeSpine(source: Source, inDeck: Boolean, onClick: () -> Unit) {
                 .clip(RoundedCornerShape(2.dp))
                 .background(DeckColors.Paper)
                 .drawBehind {
-                    drawRect(DeckColors.Accent, topLeft = Offset(0f, size.height - 4.dp.toPx()), size = androidx.compose.ui.geometry.Size(size.width, 2.dp.toPx()))
+                    drawRect(accent, topLeft = Offset(0f, size.height - 3.dp.toPx()), size = androidx.compose.ui.geometry.Size(size.width, 2.dp.toPx()))
                 }
                 .padding(horizontal = 10.dp, vertical = 2.dp),
         ) {
-            Text(source.label, style = Hand.copy(fontSize = 18.sp), maxLines = 1)
+            Text(source.label, style = Hand.copy(fontSize = 17.sp), maxLines = 1)
         }
         Spacer(Modifier.width(10.dp))
         Text(
             if (inDeck) "IN DECK" else "LOAD",
-            style = EngravedCaps.copy(color = if (inDeck) DeckColors.Accent else Color.White.copy(alpha = 0.7f), fontSize = 8.sp),
+            style = EngravedCaps.copy(color = if (inDeck) accent else Color.White.copy(alpha = 0.7f), fontSize = 8.sp),
         )
     }
 }
 
 @Composable
 private fun JCard(ui: DeckUi, actions: ShelfActions, modifier: Modifier) {
+    val accent = DeckColors.sourceAccent(ui.source)
     Column(
         modifier
             .shadow(8.dp, RoundedCornerShape(3.dp))
@@ -123,25 +127,27 @@ private fun JCard(ui: DeckUi, actions: ShelfActions, modifier: Modifier) {
             .padding(14.dp),
     ) {
         Row(verticalAlignment = Alignment.Top) {
-            CoverArt(ui, Modifier.size(104.dp))
+            CoverArt(ui, Modifier.size(92.dp))
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(ui.title.ifBlank { "—" }, style = Hand.copy(fontSize = 24.sp, fontWeight = FontWeight.Bold), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                if (ui.artist.isNotBlank()) Text(ui.artist, style = Hand.copy(fontSize = 18.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(ui.title.ifBlank { "—" }, style = Hand.copy(fontSize = 22.sp, fontWeight = FontWeight.Bold), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (ui.artist.isNotBlank()) Text(ui.artist, style = Hand.copy(fontSize = 17.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (ui.album.isNotBlank()) Text(ui.album, style = Typed.copy(fontSize = 11.sp, color = DeckColors.Ink.copy(alpha = 0.6f)), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(4.dp))
                 Text("${formatTime(ui.positionMs)} / ${formatTime(ui.durationMs)}", style = Typed.copy(fontSize = 11.sp, color = DeckColors.Ink.copy(alpha = 0.6f)))
             }
         }
-        Spacer(Modifier.height(12.dp))
-        Box(Modifier.fillMaxWidth().height(2.dp).background(DeckColors.Accent))
+        Spacer(Modifier.height(10.dp))
+        Box(Modifier.fillMaxWidth().height(2.dp).background(accent))
         Spacer(Modifier.height(2.dp))
         Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFF2B33D)))
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(8.dp))
         when (ui.source) {
             Source.LOCAL -> LocalCard(ui, actions)
+            Source.PLEX -> PlexBrowser(ui.plex, actions.plex, light = true)
+            Source.SPOTIFY -> SpotifyBrowser(ui.spotify, actions.spotify, fallback = { RemoteCard(ui, actions) }, light = true)
             Source.APPLE_MUSIC -> AppleBrowser(ui.apple, actions.apple, fallback = { RemoteCard(ui, actions) }, light = true)
-            else -> RemoteCard(ui, actions)
+            Source.YT_MUSIC -> RemoteCard(ui, actions)
         }
     }
 }
@@ -157,7 +163,7 @@ private fun CoverArt(ui: DeckUi, modifier: Modifier) {
                 val step = size.height / 7f
                 for (i in 0 until 7) drawRect(if (i % 2 == 0) ui.label.stripe else ui.label.stripe2, Offset(0f, i * step), androidx.compose.ui.geometry.Size(size.width, step))
             }
-            Text("A", style = TextStyle(fontSize = 44.sp, fontWeight = FontWeight.Black, color = DeckColors.Paper))
+            Text("A", style = TextStyle(fontSize = 40.sp, fontWeight = FontWeight.Black, color = DeckColors.Paper))
         }
     }
 }
@@ -175,7 +181,10 @@ private fun LocalCard(ui: DeckUi, actions: ShelfActions) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "${ui.folderName ?: "Folder"} · ${ui.tracks.size} songs",
-                    style = Typed.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    style = Typed.copy(fontWeight = FontWeight.Bold),
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Text("CHANGE", style = EngravedCaps.copy(color = DeckColors.AccentDeep), modifier = Modifier.clickable(onClick = actions.pickFolder).padding(6.dp))
             }
@@ -240,10 +249,10 @@ private fun RemoteCard(ui: DeckUi, actions: ShelfActions) {
         else -> Column {
             Text("Playing through $app.", style = Hand)
             Text(
-                "Keys, REW/FF and the counter work here; pick songs and playlists in $app.",
+                "Keys, REVIEW/CUE and the counter work here; pick songs and playlists below or in $app.",
                 style = Typed.copy(fontSize = 11.sp, color = DeckColors.Ink.copy(alpha = 0.65f)),
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
             PaperButton("Open $app", actions.openApp)
         }
     }
@@ -253,7 +262,7 @@ private fun RemoteCard(ui: DeckUi, actions: ShelfActions) {
 private fun Prompt(text: String, button: String, onClick: () -> Unit) {
     Column {
         Text(text, style = Typed.copy(fontSize = 12.sp, lineHeight = 17.sp))
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(10.dp))
         PaperButton(button, onClick)
     }
 }

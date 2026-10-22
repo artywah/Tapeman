@@ -10,14 +10,16 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 /**
- * Synthesised mechanism noises — the clack of a key latching, the softer tick of it releasing and
- * the thunk of the auto-stop — so there are no sound files to ship.
+ * Synthesised Sony WM-RX707 mechanism noises:
+ *  - [keyDown]: crisp feather-touch electronic logic microswitch click followed by a subtle solenoid pull-in thump.
+ *  - [keyUp]: light tactile microswitch release tick.
+ *  - [autoStop]: mechanical solenoid latch release thunk.
  */
 class MechSounds {
     private val rate = 44100
-    private val latch = track(synth(0.055f, thump = 95f, ring = 2300f, click = 0.9f, gain = 0.55f))
-    private val release = track(synth(0.03f, thump = 180f, ring = 3400f, click = 0.5f, gain = 0.3f))
-    private val thunk = track(synth(0.09f, thump = 70f, ring = 1500f, click = 0.6f, gain = 0.7f))
+    private val latch = track(synthLogicDown())
+    private val release = track(synth(0.022f, thump = 240f, ring = 4200f, click = 0.55f, gain = 0.28f))
+    private val thunk = track(synth(0.085f, thump = 72f, ring = 1450f, click = 0.65f, gain = 0.68f))
 
     fun keyDown() = play(latch)
     fun keyUp() = play(release)
@@ -32,6 +34,30 @@ class MechSounds {
         }
     }
 
+    /** Crisp 2ms microswitch snap + 14ms delayed solenoid engagement thump. */
+    private fun synthLogicDown(): ShortArray {
+        val seconds = 0.055f
+        val n = (rate * seconds).toInt()
+        val rnd = Random(3)
+        var prevNoise = 0.0
+        return ShortArray(n) { i ->
+            val t = i.toDouble() / rate
+            val white = rnd.nextDouble(-1.0, 1.0)
+            val noise = (white - prevNoise) * 0.5
+            prevNoise = white
+            // Crisp tactile dome click at t=0
+            val microClick = 0.95 * noise * exp(-t / 0.0014) +
+                0.45 * sin(2 * PI * 3600.0 * t) * exp(-t / 0.0025)
+            // Subtle solenoid transport engagement at t=14ms
+            val dt = (t - 0.014).coerceAtLeast(0.0)
+            val solenoid = if (t >= 0.014) {
+                0.75 * sin(2 * PI * 105.0 * dt) * exp(-dt / 0.011) +
+                    0.22 * noise * exp(-dt / 0.002)
+            } else 0.0
+            ((microClick + solenoid) * 0.55 * 32767 * 0.65).toInt().coerceIn(-32767, 32767).toShort()
+        }
+    }
+
     private fun synth(seconds: Float, thump: Float, ring: Float, click: Float, gain: Float): ShortArray {
         val n = (rate * seconds).toInt()
         val rnd = Random(3)
@@ -39,7 +65,6 @@ class MechSounds {
         return ShortArray(n) { i ->
             val t = i.toDouble() / rate
             val white = rnd.nextDouble(-1.0, 1.0)
-            // First difference of white noise: a crude high-pass for a crisp plastic transient.
             val noise = (white - prevNoise) * 0.5
             prevNoise = white
             val s = click * noise * exp(-t / 0.0022) +

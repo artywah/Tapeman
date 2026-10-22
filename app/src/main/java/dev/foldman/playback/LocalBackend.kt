@@ -27,10 +27,16 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** The local folder, played by [PlaybackService] and driven through a Media3 controller. */
-class LocalBackend(private val context: Context) : DeckBackend {
+/**
+ * Plays a list of [LocalTrack] URIs (either a local folder or a Plex server album/playlist)
+ * through [PlaybackService] and a Media3 controller.
+ */
+class LocalBackend(
+    private val context: Context,
+    private val emptyStatus: SourceStatus = SourceStatus.NeedsFolder,
+) : DeckBackend {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private val _state = MutableStateFlow(BackendState(status = SourceStatus.NeedsFolder))
+    private val _state = MutableStateFlow(BackendState(status = emptyStatus))
     override val state: StateFlow<BackendState> = _state.asStateFlow()
 
     private var future: ListenableFuture<MediaController>? = null
@@ -38,8 +44,8 @@ class LocalBackend(private val context: Context) : DeckBackend {
     private var whenConnected = mutableListOf<(MediaController) -> Unit>()
 
     private var tracks: List<LocalTrack> = emptyList()
-    /** Library status while there is nothing to play yet (no folder, scanning, empty). */
-    private var libraryStatus: SourceStatus = SourceStatus.NeedsFolder
+    /** Library status while there is nothing to play yet (no folder/album, scanning, empty). */
+    private var libraryStatus: SourceStatus = emptyStatus
 
     private var artworkFor: Any? = null
     private var artwork: Bitmap? = null
@@ -76,58 +82,95 @@ class LocalBackend(private val context: Context) : DeckBackend {
         publish()
     }
 
+    private fun isOurQueue(c: MediaController): Boolean =
+        tracks.isNotEmpty() &&
+            c.mediaItemCount == tracks.size &&
+            c.getMediaItemAt(0).mediaId == tracks[0].uri.toString()
+
     /**
-     * Loads [newTracks] as the tape. A queue the service is already playing (the app was reopened
-     * mid-song) is kept as it is, so playback doesn't jump.
-     */
-    fun setTracks(newTracks: List<LocalTrack>, startIndex: Int? = null) {
+      * Loads [newTracks] as the tape. A queue the service is already playing (the app was reopened
+      * mid-song) is kept as it is, so playback doesn't jump.
+      */
+    fun setTracks(newTracks: List<LocalTrack>, startIndex: Int? = null, loadIntoPlayer: Boolean = true) {
         tracks = newTracks
         libraryStatus = if (newTracks.isEmpty()) SourceStatus.EmptyFolder else SourceStatus.Ready
-        withController { c ->
-            val sameQueue = c.mediaItemCount == newTracks.size &&
-                newTracks.isNotEmpty() &&
-                c.getMediaItemAt(0).mediaId == newTracks[0].uri.toString()
-            if (!sameQueue || startIndex != null) {
-                c.setMediaItems(newTracks.map(::toMediaItem), startIndex ?: 0, 0L)
-                c.prepare()
-            } else {
-                // Refresh titles from tags without disturbing playback.
-                newTracks.forEachIndexed { i, t ->
-                    if (i < c.mediaItemCount && i != c.currentMediaItemIndex) c.replaceMediaItem(i, toMediaItem(t))
+        if (loadIntoPlayer) {
+            withController { c ->
+                val sameQueue = isOurQueue(c)
+                if (!sameQueue || startIndex != null) {
+                    if (newTracks.isNotEmpty()) {
+                        c.setMediaItems(newTracks.map(::toMediaItem), startIndex ?: 0, 0L)
+                        c.prepare()
+                    }
+                } else {
+                    // Refresh titles from tags without disturbing playback.
+                    newTracks.forEachIndexed { i, t ->
+                        if (i < c.mediaItemCount && i != c.currentMediaItemIndex) c.replaceMediaItem(i, toMediaItem(t))
+                    }
                 }
+                publish()
             }
-            publish()
         }
         publish()
     }
 
     fun playTrack(index: Int) = withController { c ->
-        if (index !in 0 until c.mediaItemCount) return@withController
-        c.seekTo(index, 0L)
+        if (index !in tracks.indices) return@withController
+        if (!isOurQueue(c)) {
+            c.setMediaItems(tracks.map(::toMediaItem), index, 0L)
+        } else {
+            c.seekTo(index, 0L)
+        }
         c.prepare()
         c.play()
+        publish()
     }
 
     private fun toMediaItem(t: LocalTrack) = MediaItem.Builder()
         .setMediaId(t.uri.toString())
         .setUri(t.uri)
         .setMediaMetadata(
-            // Title/artist come from the tags (read by LocalLibrary) or the file name, so the system
-            // media controls always have something; the folder cover backs up embedded art.
-            MediaMetadata.Builder().setTitle(t.title).setArtist(t.artist).setArtworkUri(t.coverUri).setAlbumTitle(t.folder).build(),
+            MediaMetadata.Builder()
+                .setTitle(t.title)
+                .setArtist(t.artist)
+                .setArtworkUri(t.coverUri)
+                .setAlbumTitle(t.folder)
+                .build(),
         )
         .build()
 
     private fun publish() {
         val c = controller
-        if (c == null || c.mediaItemCount == 0) {
+        if (c == null || tracks.isEmpty()) {
             _state.value = BackendState(status = libraryStatus)
+            return
+        }
+        if (!isOurQueue(c)) {
+            val first = tracks.first()
+            updateArtworkFromUri(first.coverUri)
+            _state.value = BackendState(
+                status = SourceStatus.Ready,
+                nowPlaying = NowPlaying(
+                    title = first.title,
+                    artist = first.artist,
+                    album = first.folder,
+                    artwork = artwork,
+                    artworkKey = artworkFor.takeIf { artwork != null },
+                    durationMs = 0L,
+                ),
+                isPlaying = false,
+                ended = false,
+                trackIndex = 0,
+                trackCount = tracks.size,
+                hasNext = tracks.size > 1,
+                hasPrevious = false,
+            )
             return
         }
         val index = c.currentMediaItemIndex
         val track = tracks.getOrNull(index)?.takeIf { it.uri.toString() == c.currentMediaItem?.mediaId }
         val meta = c.mediaMetadata
-        updateArtwork(meta)
+        updateArtwork(meta, track?.coverUri)
         _state.value = BackendState(
             status = SourceStatus.Ready,
             nowPlaying = NowPlaying(
@@ -147,12 +190,24 @@ class LocalBackend(private val context: Context) : DeckBackend {
         )
     }
 
-    private fun updateArtwork(meta: MediaMetadata) {
-        // Keyed by the image itself, not the song: right after a track change the controller can
-        // still report the previous song's metadata for a moment, and keying by song would keep
-        // that stale cover for the new one.
+    private fun updateArtworkFromUri(uri: android.net.Uri?) {
+        if (uri == artworkFor && (artwork != null || artworkJob?.isActive == true)) return
+        artworkJob?.cancel()
+        artworkFor = uri
+        artwork = null
+        if (uri == null) return
+        artworkJob = scope.launch {
+            val bmp = Artwork.load(context, uri)
+            if (artworkFor == uri && bmp != null) {
+                artwork = bmp
+                publish()
+            }
+        }
+    }
+
+    private fun updateArtwork(meta: MediaMetadata, fallbackUri: android.net.Uri? = null) {
         val data = meta.artworkData
-        val uri = meta.artworkUri
+        val uri = meta.artworkUri ?: fallbackUri
         val key: Any? = data?.contentHashCode() ?: uri
         if (key == artworkFor && (artwork != null || artworkJob?.isActive == true)) return
         artworkJob?.cancel()
@@ -168,17 +223,43 @@ class LocalBackend(private val context: Context) : DeckBackend {
         }
     }
 
-    override fun positionMs(): Long = controller?.currentPosition ?: 0L
+    override fun positionMs(): Long {
+        val c = controller ?: return 0L
+        return if (isOurQueue(c)) c.currentPosition else 0L
+    }
+
     override fun play() = withController { c ->
-        if (c.playbackState == Player.STATE_ENDED) c.seekTo(0, 0L)
-        if (c.playbackState == Player.STATE_IDLE) c.prepare()
+        if (!isOurQueue(c) && tracks.isNotEmpty()) {
+            c.setMediaItems(tracks.map(::toMediaItem), 0, 0L)
+            c.prepare()
+        } else {
+            if (c.playbackState == Player.STATE_ENDED) c.seekTo(0, 0L)
+            if (c.playbackState == Player.STATE_IDLE) c.prepare()
+        }
         c.play()
     }
-    override fun pause() { controller?.pause() }
-    override fun seekTo(positionMs: Long) { controller?.seekTo(positionMs) }
+
+    override fun pause() {
+        val c = controller ?: return
+        if (isOurQueue(c)) c.pause()
+    }
+
+    override fun seekTo(positionMs: Long) {
+        val c = controller ?: return
+        if (isOurQueue(c)) c.seekTo(positionMs)
+    }
+
     override fun playQueueItem(id: Long) = playTrack(id.toInt())
-    override fun skipToNext() { controller?.takeIf { it.hasNextMediaItem() }?.seekToNextMediaItem() }
-    override fun skipToPrevious() { controller?.takeIf { it.hasPreviousMediaItem() }?.seekToPreviousMediaItem() }
+
+    override fun skipToNext() {
+        val c = controller ?: return
+        if (isOurQueue(c) && c.hasNextMediaItem()) c.seekToNextMediaItem()
+    }
+
+    override fun skipToPrevious() {
+        val c = controller ?: return
+        if (isOurQueue(c) && c.hasPreviousMediaItem()) c.seekToPreviousMediaItem()
+    }
 
     override fun release() {
         future?.let(MediaController::releaseFuture)

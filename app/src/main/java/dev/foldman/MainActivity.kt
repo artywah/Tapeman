@@ -31,6 +31,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        handleAuthIntent(intent)
         setContent {
             val windowLayout by remember { WindowInfoTracker.getOrCreate(this).windowLayoutInfo(this) }
                 .collectAsStateWithLifecycle<WindowLayoutInfo?>(initialValue = null)
@@ -43,7 +44,6 @@ class MainActivity : ComponentActivity() {
             val appleSignIn = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
                 vm.onAppleSignInResult(result.data)
             }
-            // Only for the media notification; playback works without it.
             val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
             LaunchedEffect(Unit) {
                 if (Build.VERSION.SDK_INT >= 33 &&
@@ -52,18 +52,31 @@ class MainActivity : ComponentActivity() {
             }
             MaterialTheme(colorScheme = darkColorScheme()) {
                 FoldmanScreen(
-                    vm, windowLayout,
+                    vm = vm,
+                    windowLayout = windowLayout,
                     onPickFolder = { folderPicker.launch(null) },
                     onInstallApp = ::openStoreListing,
                     onAppleSignIn = { vm.appleSignInIntent()?.let(appleSignIn::launch) },
+                    onSpotifySignIn = { vm.startSpotifySignIn()?.let(::startActivity) },
                 )
             }
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleAuthIntent(intent)
+    }
+
+    private fun handleAuthIntent(intent: Intent?) {
+        val data = intent?.data ?: return
+        if (data.scheme == "foldman" && data.host == "spotify-callback") {
+            vm.onSpotifyAuthRedirect(data)
+        }
+    }
+
     override fun onResume() {
         super.onResume()
-        // Notification access may have just been granted in Settings, or the streaming app started.
         vm.refresh()
     }
 

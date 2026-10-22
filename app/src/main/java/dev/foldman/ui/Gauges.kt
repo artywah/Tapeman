@@ -124,7 +124,7 @@ fun StatusLed(transport: Transport, modifier: Modifier = Modifier, caption: Stri
             drawCircle(DeckColors.Led.copy(alpha = on), r * 0.42f)
             drawCircle(Color.White.copy(alpha = 0.25f + 0.5f * on), r * 0.14f, center - Offset(r * 0.14f, r * 0.14f))
         }
-        Text(caption, style = EngravedCaps.copy(fontSize = 7.sp, letterSpacing = 1.sp))
+        Text(caption, style = EngravedCaps.copy(fontSize = 7.sp, letterSpacing = 1.sp, color = DeckColors.EngraveLight))
     }
 }
 
@@ -145,7 +145,7 @@ private class Needles {
 fun VuMeter(transport: Transport, source: Source, modifier: Modifier = Modifier, channel: Int? = null) {
     val needles = remember { Needles() }
     val active by rememberUpdatedState(transport == Transport.PLAYING)
-    val isLocal by rememberUpdatedState(source == Source.LOCAL)
+    val isLocal by rememberUpdatedState(source == Source.LOCAL || source == Source.PLEX)
     val measurer = rememberTextMeasurer()
     LaunchedEffect(needles) {
         var last = 0L

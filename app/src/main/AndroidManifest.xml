@@ -9,19 +9,17 @@
 
     <!-- The streaming apps Foldman can drive through their media sessions. -->
     <queries>
+        <package android:name="com.spotify.music" />
         <package android:name="com.google.android.apps.youtube.music" />
         <package android:name="com.apple.android.music" />
     </queries>
 
-    <!-- allowBackup / dataExtractionRules: the settings include the Apple Music user token, so
-         nothing is backed up or copied to a new phone. (MusicKit's auth AAR asks for allowBackup="true";
-         tools:replace keeps Foldman's choice.)
-         allowNativeHeapPointerTagging: Apple's MusicKit native library (2021, built for apps
-         targeting Android 9) predates Android's tagged heap pointers, and crashed freeing memory
-         while setting up a stream's DRM on an Android 17 Fold. -->
+    <!-- allowBackup / dataExtractionRules: the settings include tokens, so nothing is backed up.
+         usesCleartextTraffic: allows connecting to local LAN Plex Media Servers over HTTP as well as HTTPS. -->
     <application
         android:allowNativeHeapPointerTagging="false"
         android:allowBackup="false"
+        android:usesCleartextTraffic="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         tools:replace="android:allowBackup"
         android:icon="@mipmap/ic_launcher"
@@ -41,6 +39,15 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Spotify OAuth 2.0 PKCE callback (foldman://spotify-callback) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="foldman"
+                    android:host="spotify-callback" />
             </intent-filter>
         </activity>
 
@@ -69,7 +76,7 @@
             tools:ignore="MissingClass"
             tools:node="merge" />
 
-        <!-- Notification access is what lets Foldman see YT Music's and Apple Music's media sessions. -->
+        <!-- Notification access is what lets Foldman see Spotify's, YT Music's and Apple Music's media sessions. -->
         <service
             android:name=".remote.MediaListenerService"
             android:exported="true"
