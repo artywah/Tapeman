@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in Foldman doesn't work as it should.
+description: Something in Tapeman doesn't work as it should.
 labels: [bug]
 body:
   - type: textarea
@@ -13,15 +13,15 @@ body:
     id: phone
     attributes:
       label: Phone and Android version
-      placeholder: Galaxy Z Fold 8, Android 17
+      placeholder: Galaxy Z Fold, Android 16
     validations:
       required: true
   - type: input
     id: version
     attributes:
-      label: Foldman version
-      description: Android Settings → Apps → Foldman.
-      placeholder: 0.1.1
+      label: Tapeman version
+      description: Android Settings → Apps → Tapeman.
+      placeholder: 0.2.1
     validations:
       required: true
   - type: dropdown
@@ -29,9 +29,11 @@ body:
     attributes:
       label: Source in the deck
       options:
+        - Plex Server
+        - Spotify
         - Local folder
-        - Apple Music (signed in, playing inside Foldman)
-        - Apple Music (driving the Apple Music app)
+        - Apple Music (in-app MusicKit)
+        - Apple Music (driving media session)
         - YT Music
         - Not about playback
     validations:
@@ -43,8 +45,9 @@ body:
       multiple: true
       options:
         - Folded (cover screen)
-        - Unfolded
-        - Half-open on a table (Flex mode)
+        - Unfolded (portrait)
+        - Unfolded (landscape)
+        - Half-open on a table (Flex mode / Tabletop)
   - type: textarea
     id: media
     attributes:

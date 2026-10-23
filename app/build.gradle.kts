@@ -19,11 +19,11 @@ val signingProps = Properties().apply {
 }
 
 // The app version; versionCode must go up by one with every release.
-val appVersionName = "0.1.2"
-val appVersionCode = 3
+val appVersionName = "0.2.1"
+val appVersionCode = 12
 
 base {
-    archivesName = "Foldman-$appVersionName"
+    archivesName = "Tapeman-$appVersionName"
 }
 
 android {

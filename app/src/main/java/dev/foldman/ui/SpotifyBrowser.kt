@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -136,7 +137,31 @@ fun SpotifyBrowser(
                     }
                 }
                 Spacer(Modifier.height(6.dp))
-                if (spotify.loading) Text("Loading tracks…", style = small)
+                if (spotify.loading) {
+                    Text("Loading tracks…", style = small)
+                } else if (spotify.tracks.isEmpty() && spotify.message == null) {
+                    Spacer(Modifier.height(8.dp))
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(ink.copy(alpha = 0.06f))
+                            .padding(14.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            "Followed Playlist",
+                            style = titleStyle.copy(fontWeight = FontWeight.SemiBold),
+                            textAlign = TextAlign.Center,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Tap PLAY TAPE above to load and stream directly on your deck.",
+                            style = small,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
                 LazyColumn {
                     itemsIndexed(spotify.tracks, key = { i, t -> "${i}_${t.id}" }) { i, t ->
                         Row(

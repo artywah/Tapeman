@@ -80,7 +80,7 @@ fun AppleBrowser(apple: AppleUi, actions: AppleActions, fallback: @Composable ()
                 Pill("Save token", enabled = token.count { it == '.' } == 2) { actions.setDeveloperToken(token) }
             }
             !apple.signedIn -> {
-                Text("Sign in so Foldman can read your library playlists. Apple's sign-in opens in the Apple Music app.", style = small)
+                Text("Sign in so Tapeman can read your library playlists. Apple's sign-in opens in the Apple Music app.", style = small)
                 Spacer(Modifier.height(10.dp))
                 Pill("Sign in to Apple Music", onClick = actions.signIn)
             }

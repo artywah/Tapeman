@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -29,8 +31,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,6 +73,212 @@ fun Modifier.glassPanel(corner: Dp = 18.dp): Modifier = drawWithCache {
         drawRoundRect(Color.Black.copy(alpha = 0.6f), topLeft = Offset(0f, 3f), cornerRadius = r)
         drawRoundRect(fill, cornerRadius = r)
         drawRoundRect(Color.White.copy(alpha = 0.09f), cornerRadius = r, style = Stroke(1.5f))
+    }
+}
+
+/**
+ * The Unfolded Music Selection & Now Playing Hub (occupies the left half of the unfolded display).
+ * Features:
+ * - Compact top horizontal source switcher pills (Local, Plex, Spotify, Apple, YT Music)
+ * - Navigation tabs between "Library" browser and "Queue"
+ * - Full-height browser / queue display
+ * - Retro Now Playing liner notes & progress card at the bottom
+ */
+@Composable
+fun UnfoldedMusicHub(
+    ui: DeckUi,
+    actions: ShelfActions,
+    onPlayQueue: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var activeTab by rememberSaveable { mutableStateOf(0) } // 0 = Library, 1 = Queue
+    val accent = DeckColors.sourceAccent(ui.source)
+
+    Column(
+        modifier
+            .glassPanel()
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        // 1. Top Source Capsules Row
+        LazyRow(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            items(Source.entries) { s ->
+                val selected = s == ui.source
+                val srcAccent = DeckColors.sourceAccent(s)
+                Row(
+                    Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(if (selected) srcAccent.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.05f))
+                        .border(
+                            1.dp,
+                            if (selected) srcAccent.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.08f),
+                            RoundedCornerShape(16.dp),
+                        )
+                        .clickable { actions.selectSource(s) }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    SourceTile(s, Modifier.size(16.dp))
+                    Text(
+                        s.label,
+                        style = TextStyle(
+                            fontSize = 12.sp,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (selected) Color.White else Color.White.copy(alpha = 0.7f),
+                        ),
+                    )
+                }
+            }
+        }
+
+        // 2. Library vs Queue Sub-header / Tabs
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text(
+                    "Library",
+                    style = Header.copy(
+                        color = if (activeTab == 0) Color.White else Color.White.copy(alpha = 0.4f),
+                        fontSize = 17.sp,
+                    ),
+                    modifier = Modifier.clickable { activeTab = 0 }.padding(vertical = 2.dp),
+                )
+                Text(
+                    if (ui.queue.isNotEmpty()) "Queue (${ui.queue.size})" else "Queue",
+                    style = Header.copy(
+                        color = if (activeTab == 1) Color.White else Color.White.copy(alpha = 0.4f),
+                        fontSize = 17.sp,
+                    ),
+                    modifier = Modifier.clickable { activeTab = 1 }.padding(vertical = 2.dp),
+                )
+            }
+
+            // Quick source status & version
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    statusLine(ui),
+                    style = Sub.copy(fontSize = 11.sp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    "v0.2.1",
+                    style = Sub.copy(fontSize = 10.sp, color = Color.White.copy(alpha = 0.35f)),
+                )
+            }
+        }
+
+        // 3. Main Center Content (Library Browser or Queue List)
+        Box(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+        ) {
+            if (activeTab == 0) {
+                when (ui.source) {
+                    Source.LOCAL -> Albums(ui, actions)
+                    Source.PLEX -> PlexBrowser(ui.plex, actions.plex)
+                    Source.SPOTIFY -> SpotifyBrowser(
+                        ui.spotify,
+                        actions.spotify,
+                        fallback = { RemoteState(ui, actions, showHeader = false) },
+                    )
+                    Source.APPLE_MUSIC -> AppleBrowser(
+                        ui.apple,
+                        actions.apple,
+                        fallback = { RemoteState(ui, actions, showHeader = false) },
+                    )
+                    Source.YT_MUSIC -> RemoteState(ui, actions)
+                }
+            } else {
+                QueueList(ui, onPlayQueue)
+            }
+        }
+
+        // 4. Bottom Now Playing & Liner Notes Card
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color(0xFF141619))
+                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(14.dp))
+                .padding(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Album art square
+            Box(
+                Modifier
+                    .size(64.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Brush.linearGradient(listOf(ui.label.stripe, ui.label.stripe2))),
+                contentAlignment = Alignment.Center,
+            ) {
+                ui.artwork?.let {
+                    Image(it, "Album art", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                } ?: Text("♪", style = TextStyle(fontSize = 26.sp, color = Color.White.copy(alpha = 0.75f)))
+            }
+
+            // Title, artist, duration and seek progress
+            Column(Modifier.weight(1f)) {
+                Text(
+                    ui.title.ifBlank { "No tape playing" },
+                    style = Title.copy(fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                val byLine = listOf(ui.artist, ui.album).filter { it.isNotBlank() }.joinToString(" · ")
+                if (byLine.isNotBlank()) {
+                    Text(
+                        byLine,
+                        style = Sub.copy(fontSize = 11.5.sp),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Spacer(Modifier.height(5.dp))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        "${formatTime(ui.positionMs)} / ${formatTime(ui.durationMs)}",
+                        style = Sub.copy(fontSize = 10.sp),
+                    )
+                    Text(
+                        buildString {
+                            append(ui.source.label)
+                            if (ui.dbbEnabled) append(" · DBB")
+                            if (ui.avlsEnabled) append(" · AVLS")
+                        },
+                        style = Sub.copy(fontSize = 9.5.sp, color = accent),
+                    )
+                }
+                Spacer(Modifier.height(3.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Color.White.copy(alpha = 0.12f)),
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth(ui.progress)
+                            .fillMaxHeight()
+                            .background(accent),
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -222,7 +433,7 @@ private fun RemoteState(ui: DeckUi, actions: ShelfActions, showHeader: Boolean =
     }
     val (text, button, action) = when (ui.status) {
         SourceStatus.NeedsAccess -> Triple(
-            "Foldman plays $app through its media session, which Android only shares with apps that have notification access. If the switch is greyed out: App info → ⋮ → Allow restricted settings.",
+            "Tapeman plays $app through its media session, which Android only shares with apps that have notification access. If the switch is greyed out: App info → ⋮ → Allow restricted settings.",
             "Grant access", actions.openAccess,
         )
         SourceStatus.NotInstalled -> Triple("$app isn't installed.", "Get $app", { actions.installApp(ui.source) })

@@ -129,7 +129,7 @@ fun Modifier.chassis(corner: Dp = 22.dp, screws: Boolean = true): Modifier = dra
  * Curved hammer-tone stippled gunmetal control island from the Sony WM-RX707.
  * Rises from the bottom edge with a smooth convex arch at the top and a recessed seam around it.
  */
-fun Modifier.gunmetalPod(archHeightFraction: Float = 0.18f): Modifier = drawWithCache {
+fun Modifier.gunmetalPod(archHeightFraction: Float = 0.18f, inverted: Boolean = false): Modifier = drawWithCache {
     val w = size.width
     val h = size.height
     val archH = (h * archHeightFraction).coerceIn(14f, 56f)
@@ -138,18 +138,27 @@ fun Modifier.gunmetalPod(archHeightFraction: Float = 0.18f): Modifier = drawWith
     fun buildPodPath(inset: Float): Path = Path().apply {
         val left = inset
         val right = w - inset
-        val bottom = h
-        val shoulderY = archH + cornerR * 0.45f + inset
-        moveTo(left, bottom)
-        lineTo(left, shoulderY)
-        // Left rounded shoulder into the top convex arch
-        quadraticTo(left, archH * 0.48f + inset, left + cornerR, archH * 0.28f + inset)
-        // Smooth convex arch across the top of the pod
-        quadraticTo(w * 0.5f, -archH * 0.22f + inset, right - cornerR, archH * 0.28f + inset)
-        // Right rounded shoulder down to the right edge
-        quadraticTo(right, archH * 0.48f + inset, right, shoulderY)
-        lineTo(right, bottom)
-        close()
+        if (!inverted) {
+            val bottom = h
+            val shoulderY = archH + cornerR * 0.45f + inset
+            moveTo(left, bottom)
+            lineTo(left, shoulderY)
+            quadraticTo(left, archH * 0.48f + inset, left + cornerR, archH * 0.28f + inset)
+            quadraticTo(w * 0.5f, -archH * 0.22f + inset, right - cornerR, archH * 0.28f + inset)
+            quadraticTo(right, archH * 0.48f + inset, right, shoulderY)
+            lineTo(right, bottom)
+            close()
+        } else {
+            val top = 0f
+            val shoulderY = h - archH - cornerR * 0.45f - inset
+            moveTo(left, top)
+            lineTo(left, shoulderY)
+            quadraticTo(left, h - archH * 0.48f - inset, left + cornerR, h - archH * 0.28f - inset)
+            quadraticTo(w * 0.5f, h + archH * 0.22f - inset, right - cornerR, h - archH * 0.28f - inset)
+            quadraticTo(right, h - archH * 0.48f - inset, right, shoulderY)
+            lineTo(right, top)
+            close()
+        }
     }
 
     val outerTrench = buildPodPath(0f)
@@ -172,12 +181,21 @@ fun Modifier.gunmetalPod(archHeightFraction: Float = 0.18f): Modifier = drawWith
         }
     }
 
-    val podFill = Brush.verticalGradient(
-        0f to DeckColors.PodHi,
-        0.25f to DeckColors.Pod,
-        0.85f to Color(0xFF434640),
-        1f to DeckColors.PodLo,
-    )
+    val podFill = if (!inverted) {
+        Brush.verticalGradient(
+            0f to DeckColors.PodHi,
+            0.25f to DeckColors.Pod,
+            0.85f to Color(0xFF434640),
+            1f to DeckColors.PodLo,
+        )
+    } else {
+        Brush.verticalGradient(
+            0f to DeckColors.PodLo,
+            0.15f to Color(0xFF434640),
+            0.75f to DeckColors.Pod,
+            1f to DeckColors.PodHi,
+        )
+    }
     val archSheen = Brush.radialGradient(
         listOf(Color.White.copy(alpha = 0.16f), Color.Transparent),
         center = Offset(w * 0.5f, archH * 0.35f),

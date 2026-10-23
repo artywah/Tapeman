@@ -11,5 +11,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "foldman"
+rootProject.name = "tapeman"
 include(":app")

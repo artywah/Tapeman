@@ -88,6 +88,7 @@ fun Rx707LogicPod(
     onPlayToggle: () -> Unit,
     onToggleHold: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    inverted: Boolean = false,
 ) {
     val t = ui.transport
     val hold = ui.holdLocked
@@ -115,7 +116,7 @@ fun Rx707LogicPod(
 
     Box(
         modifier = modifier
-            .gunmetalPod(archHeightFraction = 0.20f)
+            .gunmetalPod(archHeightFraction = 0.20f, inverted = inverted)
             .padding(horizontal = 18.dp, vertical = 8.dp),
     ) {
         Column(
@@ -178,7 +179,7 @@ fun Rx707LogicPod(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // 1. REW / REVIEW
+                // 1. REW
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.offset(y = 10.dp),
@@ -193,15 +194,9 @@ fun Rx707LogicPod(
                         height = 48.dp,
                         labelAngle = -14f,
                     )
-                    Spacer(Modifier.height(3.dp))
-                    Text(
-                        "REVIEW",
-                        style = EngravedCaps.copy(color = DeckColors.PodSilkscreen, fontSize = 8.sp, letterSpacing = 1.1.sp),
-                        modifier = Modifier.rotate(-14f),
-                    )
                 }
 
-                // 2. FF / CUE
+                // 2. FF
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.offset(y = 2.dp),
@@ -215,12 +210,6 @@ fun Rx707LogicPod(
                         width = 48.dp,
                         height = 48.dp,
                         labelAngle = -7f,
-                    )
-                    Spacer(Modifier.height(3.dp))
-                    Text(
-                        "CUE",
-                        style = EngravedCaps.copy(color = DeckColors.PodSilkscreen, fontSize = 8.sp, letterSpacing = 1.1.sp),
-                        modifier = Modifier.rotate(-7f),
                     )
                 }
 

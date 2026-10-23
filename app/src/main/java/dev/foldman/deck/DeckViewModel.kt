@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.provider.Settings
 import androidx.compose.ui.graphics.Color
@@ -15,6 +17,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.palette.graphics.Palette
 import dev.foldman.BuildConfig
+import dev.foldman.MainActivity
 import dev.foldman.apple.AppleAuthExpired
 import dev.foldman.apple.AppleKitBackend
 import dev.foldman.apple.AppleMusicApi
@@ -692,7 +695,13 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     fun openSpotifyCollection(collection: SpotifyCollection) {
         spotify.value = spotify.value.copy(openCollection = collection, tracks = emptyList())
         spotifyCall { api ->
-            val tracks = api.tracks(collection)
+            val tracks = runCatching { api.tracks(collection) }.getOrElse { err ->
+                if (err.message?.contains("403") == true) {
+                    // Spotify Developer Mode restricts tracks API on third-party / followed playlists.
+                    // Keep tracks list empty and suppress the error message so the user can tap PLAY TAPE.
+                    emptyList()
+                } else throw err
+            }
             if (spotify.value.openCollection?.id == collection.id) {
                 spotify.value = spotify.value.copy(tracks = tracks)
             }
@@ -719,8 +728,20 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUri))
                     .setPackage(Source.SPOTIFY.packageName)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT)
-                runCatching { app.startActivity(intent) }.recoverCatching {
+                val launched = runCatching { app.startActivity(intent); true }.recoverCatching {
                     app.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(col.uri)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    true
+                }.getOrDefault(false)
+
+                // If playback fell back to launching the Spotify Android app,
+                // bring Tapeman smoothly back to the foreground so the user sees the cassette spinning!
+                if (launched) {
+                    val bringBack = Intent(app, MainActivity::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    }
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        runCatching { app.startActivity(bringBack) }
+                    }, 800)
                 }
             }
             stopped = false

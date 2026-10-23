@@ -54,14 +54,17 @@ class SpotifyApi(private val accessToken: String) {
                 val id = p.optString("id")
                 val name = p.optString("name", "Untitled Playlist")
                 val owner = p.optJSONObject("owner")?.optString("display_name").orEmpty()
-                val total = p.optJSONObject("tracks")?.optInt("total", 0) ?: 0
+                val total = p.optJSONObject("tracks")?.optInt("total")
+                    ?: p.optJSONObject("items")?.optInt("total")
+                    ?: p.optInt("total_tracks", 0)
+                val countText = if (total > 0) "$total songs" else "Playlist"
                 val art = firstImage(p.optJSONArray("images"))
                 if (id.isNotBlank()) {
                     add(
                         SpotifyCollection(
                             id = id,
                             name = name,
-                            subtitle = listOfNotNull(owner.takeIf { it.isNotBlank() }, "$total songs").joinToString(" · "),
+                            subtitle = listOfNotNull(owner.takeIf { it.isNotBlank() }, countText).joinToString(" · "),
                             artworkUrl = art,
                             uri = p.optString("uri", "spotify:playlist:$id"),
                             isAlbum = false,
@@ -121,11 +124,18 @@ class SpotifyApi(private val accessToken: String) {
                 }
             }
         } else {
-            val root = get("https://api.spotify.com/v1/playlists/${collection.id}/tracks?limit=100")
+            // First try modern /v1/playlists/{id}/items endpoint, then fall back to /v1/playlists/{id}/tracks
+            val root = runCatching {
+                get("https://api.spotify.com/v1/playlists/${collection.id}/items?limit=100")
+            }.recoverCatching {
+                get("https://api.spotify.com/v1/playlists/${collection.id}/tracks?limit=100")
+            }.getOrThrow()
+
             val items = root.optJSONArray("items") ?: return@withContext emptyList()
             buildList {
                 for (i in 0 until items.length()) {
-                    val t = items.optJSONObject(i)?.optJSONObject("track") ?: continue
+                    val raw = items.optJSONObject(i) ?: continue
+                    val t = raw.optJSONObject("item") ?: raw.optJSONObject("track") ?: raw
                     val id = t.optString("id")
                     if (id.isBlank()) continue
                     val albumObj = t.optJSONObject("album")
@@ -146,30 +156,51 @@ class SpotifyApi(private val accessToken: String) {
     }
 
     /**
-     * Attempts to start playback directly via Spotify Connect Web API if an active device exists;
+     * Attempts to start playback directly via Spotify Connect Web API if an active or available device exists;
      * returns true if Web API accepted the playback command, false if caller should fall back to URI intent.
      */
     suspend fun startPlayback(contextUri: String, offsetIndex: Int): Boolean = withContext(Dispatchers.IO) {
         runCatching {
-            val conn = (URL("https://api.spotify.com/v1/me/player/play").openConnection() as HttpURLConnection).apply {
-                requestMethod = "PUT"
-                doOutput = true
-                connectTimeout = 6000
-                readTimeout = 6000
-                setRequestProperty("Authorization", "Bearer $accessToken")
-                setRequestProperty("Content-Type", "application/json")
+            fun tryPlay(deviceId: String? = null): Boolean {
+                val url = if (deviceId != null) {
+                    "https://api.spotify.com/v1/me/player/play?device_id=$deviceId"
+                } else {
+                    "https://api.spotify.com/v1/me/player/play"
+                }
+                val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+                    requestMethod = "PUT"
+                    doOutput = true
+                    connectTimeout = 5000
+                    readTimeout = 5000
+                    setRequestProperty("Authorization", "Bearer $accessToken")
+                    setRequestProperty("Content-Type", "application/json")
+                }
+                val payload = JSONObject().apply {
+                    put("context_uri", contextUri)
+                    put("offset", JSONObject().put("position", offsetIndex.coerceAtLeast(0)))
+                    put("position_ms", 0)
+                }.toString()
+                return try {
+                    conn.outputStream.use { it.write(payload.toByteArray()) }
+                    conn.responseCode in 200..299
+                } finally {
+                    conn.disconnect()
+                }
             }
-            val payload = JSONObject().apply {
-                put("context_uri", contextUri)
-                put("offset", JSONObject().put("position", offsetIndex.coerceAtLeast(0)))
-                put("position_ms", 0)
-            }.toString()
-            try {
-                conn.outputStream.use { it.write(payload.toByteArray()) }
-                conn.responseCode in 200..299
-            } finally {
-                conn.disconnect()
+
+            // 1. Try playing immediately on current active device
+            if (tryPlay()) return@runCatching true
+
+            // 2. If no active device, check available devices and try waking the first device
+            val devicesObj = runCatching { get("https://api.spotify.com/v1/me/player/devices") }.getOrNull()
+            val devices = devicesObj?.optJSONArray("devices")
+            if (devices != null && devices.length() > 0) {
+                val devId = devices.optJSONObject(0)?.optString("id")
+                if (!devId.isNullOrBlank()) {
+                    return@runCatching tryPlay(devId)
+                }
             }
+            false
         }.getOrDefault(false)
     }
 
@@ -183,7 +214,11 @@ class SpotifyApi(private val accessToken: String) {
         try {
             val code = conn.responseCode
             if (code == 401) throw SpotifyAuthExpired()
-            if (code !in 200..299) throw IllegalStateException("Spotify HTTP $code")
+            if (code !in 200..299) {
+                val errBody = runCatching { conn.errorStream?.bufferedReader()?.use { it.readText() } }.getOrNull()
+                android.util.Log.w("SpotifyApi", "GET $url returned $code: $errBody")
+                throw IllegalStateException("Spotify HTTP $code")
+            }
             return JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
         } finally {
             conn.disconnect()

@@ -38,7 +38,7 @@ object MusicKit {
         var builder: Any = m.getMethod("createIntentBuilder", String::class.java).invoke(manager(context), developerToken)!!
         builder = b.getMethod("setHideStartScreen", Boolean::class.javaPrimitiveType).invoke(builder, false) ?: builder
         builder = b.getMethod("setStartScreenMessage", String::class.java)
-            .invoke(builder, "Connect Apple Music to play your playlists on the Foldman deck.") ?: builder
+            .invoke(builder, "Connect Apple Music to play your playlists on the Tapeman deck.") ?: builder
         b.getMethod("build").invoke(builder) as Intent
     }.getOrNull()
 

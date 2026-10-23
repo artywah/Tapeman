@@ -1,33 +1,59 @@
 # Changelog
 
-All notable changes to Foldman. Versions follow [semantic versioning](https://semver.org); downloads are on the [releases page](https://github.com/deveshrai/Foldman/releases).
+All notable changes to Tapeman. Versions follow [semantic versioning](https://semver.org); downloads are on the [releases page](https://github.com/artywah/Tapeman/releases).
+
+## [0.2.1] — 2026-10-23
+
+Major evolution and redesign to **Tapeman**.
+
+### Added
+- **Sony Walkman WM-RX707 Redesign:**
+  - Curved hammer-tone gunmetal control pod with spun-chrome feather-touch logic controls (REW, FF, STOP, FWD/REV direction toggle).
+  - Upper brushed aluminium panel featuring the OPEN cassette bay hatch, AMS skip buttons, and EX DBB toggle switch.
+  - Lower brushed aluminium panel with mechanical 3-digit tape counter, 000 reset push-button, AVLS limiter switch, master dual-channel stereo volume faders, and REMOTE/PHONES socket.
+  - Transparent Type IV Metal cassette shell (PX 90 / FM 60) with visible tape packs, moving reels, and dynamic album artwork label printing.
+- **Plex Media Server Integration:**
+  - Direct connection to personal Plex servers via base URL and `X-Plex-Token`.
+  - Comprehensive library browsing across Albums, Recent additions, Popular releases, and Playlists.
+  - Live search and A–Z index jump rails.
+  - Direct native Media3 streaming with real-time audio analysis, continuous 12× REVIEW/CUE winding across tracks, and persistent session state.
+- **Spotify Integration:**
+  - In-app Spotify library browsing with OAuth 2.0 PKCE authentication.
+  - Direct access to Spotify Playlists and Saved Albums in the Tape Shelf and Library band.
+  - Native media-session transport control out of the box.
+- **Real-Time Audio DSP:**
+  - **EX DBB (Dynamic Bass Boost):** Dual-mode frequency equalization providing warm, punchy analog low-end.
+  - **AVLS (Automatic Volume Limiter System):** Dynamic range limiter preventing peak fatigue while preserving punch.
+- **Tabletop (Flex Mode) Refinement:**
+  - Re-anchored upper deck view when half-opened on a flat surface, with responsive lower-screen library and track queue navigation.
+
+### Changed
+- App rebranded to **Tapeman**.
+- Updated documentation and screenshots across all postures.
+
+---
 
 ## [0.1.2] — 2026-10-21
 
 ### Changed
-- **Foldman's settings no longer go into Android backups or device transfers.** They include your Apple Music user token, which now stays on the phone. When you move to a new phone, sign in to Apple Music again there.
+- **Settings no longer go into Android backups or device transfers.** They include your Apple Music user token, which now stays on the phone. When you move to a new phone, sign in to Apple Music again there.
 
 ## [0.1.1] — 2026-10-21
 
 ### Fixed
-- **Apple Music showed the next song instead of the one playing.** MusicKit lists only the songs *after* the current one in its queue, and Foldman read the playing song's position from that list. The title, artist, cassette label and cover now come from the song that's actually playing, and the queue and Up next start from it.
+- **Apple Music showed the next song instead of the one playing.** MusicKit lists only the songs *after* the current one in its queue, and the title, artist, cassette label and cover now come from the song that's actually playing.
 - **"Track 0 of N"** for Apple Music now shows the right position and count, including songs already played.
 
 ### Changed
-- Apple Music playlists always play in order: Foldman explicitly turns shuffle off when it loads one, and turns it off again if Apple's player ever reports it on.
+- Apple Music playlists always play in order: explicitly turns shuffle off when it loads one.
 
 ## [0.1.0] — 2026-10-21
 
 The first release.
 
 ### Added
-- **Three postures.** On the cover screen, an edge-to-edge upright portable player with the tape on end behind a window and the keys down a silver side strip. Unfolded, the same player laid down as a deck between a library panel and a now-playing panel. Half-open on a table (Flex mode), the deck on the top half and the library on the bottom.
-- **The mechanism.** Latching PLAY, PAUSE, STOP·EJECT, FF and REW keys and AMS skip buttons. Reels turn at tape speed ÷ radius with spin-up and coast-down. A mechanical tape counter, VU needles that follow the real audio on local files, an OPERATE LED, synthesised key clicks and haptics, and CLICK / HAPTIC switches.
-- **Local folders.** Media3 playback in a background service with media controls. Album art comes from embedded art or a cover image in the folder, and each sub-folder is listed as an album.
-- **Apple Music via MusicKit** (optional AARs). Sign-in, library playlist browsing through the Apple Music API, and in-app streaming in a separate, crash-isolated process that resumes the song after a crash.
+- **Three postures.** On the cover screen, an edge-to-edge portable player. Unfolded, the same player laid down as a deck between library and now-playing panels. Half-open on a table (Flex mode), deck on top half and library on bottom.
+- **The mechanism.** Latching transport keys, reels turning at tape speed ÷ radius with inertia, mechanical counter, synthesized clicks, and haptic feedback.
+- **Local folders.** Media3 playback in a background service with media controls.
+- **Apple Music via MusicKit** (optional AARs). Sign-in, library playlist browsing through the Apple Music API, and in-app streaming in an isolated process.
 - **YT Music and Apple Music via media sessions.** Transport, artwork and queue, using notification access.
-- Adaptive launcher icon with a themed (monochrome) layer.
-
-[0.1.2]: https://github.com/deveshrai/Foldman/releases/tag/v0.1.2
-[0.1.1]: https://github.com/deveshrai/Foldman/releases/tag/v0.1.1
-[0.1.0]: https://github.com/deveshrai/Foldman/releases/tag/v0.1.0

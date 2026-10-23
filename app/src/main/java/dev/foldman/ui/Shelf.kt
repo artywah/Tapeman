@@ -70,7 +70,7 @@ fun TapeShelf(ui: DeckUi, actions: ShelfActions, modifier: Modifier = Modifier) 
             .background(Brush.verticalGradient(listOf(Color(0xFF1F2124), Color(0xFF121316))))
             .padding(16.dp),
     ) {
-        Text("TAPES · SONY WM-RX707", style = EngravedCaps.copy(color = Color(0xFFB8BEC6), fontSize = 10.sp, letterSpacing = 2.5.sp))
+        Text("TAPES · TAPEMAN", style = EngravedCaps.copy(color = Color(0xFFB8BEC6), fontSize = 10.sp, letterSpacing = 2.5.sp))
         Spacer(Modifier.height(8.dp))
         Source.entries.forEach { s ->
             TapeSpine(s, inDeck = s == ui.source, onClick = { actions.selectSource(s) })
@@ -232,7 +232,7 @@ private fun RemoteCard(ui: DeckUi, actions: ShelfActions) {
     when (ui.status) {
         SourceStatus.NeedsAccess -> Column {
             Prompt(
-                "Foldman plays $app by driving its media session, which Android only shares with apps that have notification access. Turn on Foldman in the list that opens.",
+                "Tapeman plays $app by driving its media session, which Android only shares with apps that have notification access. Turn on Tapeman in the list that opens.",
                 "Grant notification access", actions.openAccess,
             )
             Spacer(Modifier.height(8.dp))

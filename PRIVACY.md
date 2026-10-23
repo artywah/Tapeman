@@ -1,40 +1,42 @@
 # Privacy and permissions
 
-Foldman has no accounts, analytics, ads or servers of its own. Everything it knows stays on your phone, apart from the requests to Apple described below.
+Tapeman has no accounts, analytics, ads, tracking, or remote telemetry servers of its own. Everything it knows stays strictly on your device or communicates directly with the music services you configure.
 
 ## Permissions
 
-| Permission | Why Foldman asks |
+| Permission | Why Tapeman asks |
 | --- | --- |
-| **Notification access** (Settings → Notification access) | Android only lets apps with notification access see other apps' *media sessions*: what YT Music or Apple Music is playing, and their play/pause/skip controls. Foldman's listener does nothing with notifications themselves; it never reads, stores or dismisses them. Only needed for the YT Music source, and for Apple Music without MusicKit. |
-| **Folder access** (the system folder picker) | Read access to the one music folder you choose, and nothing else on the phone. |
-| **Notifications** | Shows the media notification while local music plays, with play/pause and skip on the lock screen. |
-| **Foreground service (media playback)** | Keeps local music playing when Foldman is in the background. |
-| **Internet** | Downloads album art for streaming sources, and talks to Apple (below). |
-| Wake lock, network state | Requested by Apple's MusicKit player, for streaming. |
+| **Notification access** (Settings → Notification access) | Android requires notification access for apps to observe other players' *MediaSessions* (e.g. YT Music, Spotify, or Apple Music) for transport control and live track metadata. Tapeman's listener only inspects media sessions; it never reads, logs, or dismisses personal notifications. |
+| **Folder access** (System Storage Access Framework) | Read access to the local music directory you select. |
+| **Notifications** | Displays standard playback controls and album art on the system lock screen and notification drawer. |
+| **Foreground service (media playback)** | Maintains uninterrupted playback when Tapeman is backgrounded or the screen is off. |
+| **Internet** | Connects to your configured Plex Server, Spotify Web API, Apple MusicKit, and fetches remote album art. |
+| **Wake lock & Network state** | Prevents Wi-Fi and playback dropouts while streaming audio. |
 
-## What's stored on the phone
+## What's stored on your device
 
-Foldman keeps a few settings in its private app storage:
-- the source in the deck;
-- the music folder you picked;
-- the CLICK and HAPTIC switch positions;
-- your Apple Music **user token**, after you sign in, and a developer token if you pasted one in.
+Tapeman retains configuration settings solely within sandboxed private app storage:
+- Current active audio source.
+- Local music folder URI.
+- Tactile feel options (click sounds and haptic switches).
+- Plex server address and `X-Plex-Token` (communicates directly with your Plex server only).
+- Spotify OAuth PKCE tokens (communicates directly with Spotify's authentication servers only).
+- Apple Music user and developer tokens.
 
-None of it leaves the phone. Foldman opts out of Android's cloud backup and of device-to-device transfer, so your Apple Music token isn't copied into a backup or onto a new phone; on a new phone you sign in again. Uninstalling Foldman deletes it all.
+Tapeman explicitly opts out of Android automatic cloud backups and device-to-device transfers to ensure authentication credentials remain isolated to your physical device. Uninstalling Tapeman permanently deletes all local configuration.
 
-> Versions 0.1.0 and 0.1.1 allowed Android's backup, so their settings, including the Apple Music user token, could be included in your phone's backup. 0.1.2 and later don't. Signing out in Foldman deletes the token from the phone, but not from a backup that was already made. Android replaces backups over time, and you can delete an existing one in your phone's Google backup settings.
+## Network Communications
 
-## What goes over the network
+- **Plex Media Server:** Queries your designated server directly for music metadata and streams audio directly through Media3.
+- **Spotify:** Direct calls to `accounts.spotify.com` and `api.spotify.com` using PKCE token exchange.
+- **Apple Music:** Calls to `api.music.apple.com` and streaming endpoints when MusicKit is configured.
+- **Album Art:** Fetches album artwork thumbnails directly from the active music provider to render on the cassette label.
 
-- **Apple** (`api.music.apple.com` and Apple's streaming services), only when you use Apple Music through MusicKit:
-  - Foldman fetches your library playlists and their songs with your user token.
-  - Apple's MusicKit player streams the songs and, like any Apple Music player, reports what you played back to Apple.
-  - Apple's handling of that data is covered by [Apple's privacy policy](https://www.apple.com/legal/privacy/).
-- **Album art URLs** that YT Music, Apple Music or Apple's API hand to Foldman are downloaded to draw the cassette label.
+Local files are read and processed entirely on-device and never leave your phone.
 
-Local music never leaves the phone.
+## Revoking & Signing out
 
-## Signing out
-
-In Foldman, go to Apple Music → **Sign out** to forget your Apple Music user token. Turning off Foldman's notification access in Android settings stops it seeing other apps' playback.
+- **Plex:** Clear server settings in the Plex configuration sheet.
+- **Spotify:** Tap *Sign Out* in the Spotify browser panel to clear OAuth tokens.
+- **Apple Music:** Tap *Sign out* in the Apple Music panel.
+- **Media Access:** Toggle off Tapeman's notification access in Android Settings.

@@ -3,10 +3,22 @@ package dev.foldman.ui
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -25,6 +37,7 @@ import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -33,8 +46,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.foldman.deck.DeckUi
 import dev.foldman.deck.LabelPalette
@@ -54,6 +70,224 @@ private val WINDOW = Rect(15f, 21f, 85f, 43f)
  */
 private val CROP = Rect(8f, 11.5f, 92f, 49.5f)
 const val TAPE_WINDOW_ASPECT = 84f / 38f
+const val FULL_CASSETTE_ASPECT = 100f / 64f
+
+/**
+ * Renders the complete exposed Compact Cassette tape (DuoMan style),
+ * showing the entire shell, corner screws, hubs, tape ribbon path, and full label.
+ */
+@Composable
+fun FullCassette(
+    ui: DeckUi,
+    anim: DeckAnimations,
+    modifier: Modifier = Modifier,
+    vertical: Boolean = false,
+    inverted: Boolean = false,
+) {
+    val measurer = rememberTextMeasurer()
+    val shell by animateColorAsState(DeckColors.shell(ui.source), tween(600), label = "shellFull")
+    Canvas(
+        modifier
+            .quarterTurn(vertical)
+            .aspectRatio(FULL_CASSETTE_ASPECT)
+            .graphicsLayer(),
+    ) {
+        val u = size.width / 100f
+        val slide = anim.insert.value
+        val pop = anim.pop.value
+        val dx = if (vertical) slide * size.width * 1.1f + pop * u * 5f else 0f
+        val dy = if (vertical) 0f else -slide * size.height * 1.3f - pop * u * 5f
+        translate(dx, dy) {
+            withTransform({
+                if (inverted) {
+                    rotate(180f, Offset(50f * u, 32f * u))
+                }
+                scale(u, u, Offset.Zero)
+            }) {
+                if (ui.transparentShell) {
+                    drawMaXgCassette(ui, anim.reels, shell, measurer, u, inverted = inverted)
+                } else {
+                    drawClassicCassette(ui, anim.reels, shell, measurer, u, inverted = inverted)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The interior cassette well / chamber of the Walkman:
+ * Shows the recessed transport bay, guide spindles, magnetic read/write head,
+ * and the full cassette tape seated inside. Tapping it closes the door.
+ */
+@Composable
+fun CassetteChamber(
+    ui: DeckUi,
+    anim: DeckAnimations,
+    onCloseDoor: () -> Unit,
+    modifier: Modifier = Modifier,
+    vertical: Boolean = false,
+    inverted: Boolean = false,
+    promptToClose: Boolean = true,
+    tapeOffset: DpOffset = DpOffset.Zero,
+    tapeSize: DpSize = DpSize.Unspecified,
+    doorProgress: Float = 0f,
+) {
+    val density = LocalDensity.current
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFF0C0E10))
+            .clickable(onClick = onCloseDoor),
+    ) {
+        val hasCustomTape = tapeSize != DpSize.Unspecified
+        // Draw the mechanical bay floor: drive spindles, guide posts, and tape head
+        Canvas(Modifier.fillMaxSize()) {
+            val w = size.width
+            val h = size.height
+
+            // Recessed bay floor texture & perimeter bevel
+            drawRoundRect(
+                brush = Brush.verticalGradient(listOf(Color(0xFF0A0B0D), Color(0xFF141619), Color(0xFF090A0C))),
+                cornerRadius = CornerRadius(12.dp.toPx()),
+            )
+            drawRoundRect(
+                color = Color.White.copy(alpha = 0.08f),
+                cornerRadius = CornerRadius(12.dp.toPx()),
+                style = Stroke(1.5f.dp.toPx()),
+            )
+
+            val (tapeLeftPx, tapeTopPx, tapeWPx, tapeHPx) = if (hasCustomTape) {
+                with(density) {
+                    listOf(tapeOffset.x.toPx(), tapeOffset.y.toPx(), tapeSize.width.toPx(), tapeSize.height.toPx())
+                }
+            } else {
+                val tW = w * 0.92f
+                val tH = tW * 64f / 100f
+                listOf((w - tW) / 2f, (h - tH) / 2f, tW, tH)
+            }
+
+            val uPx = tapeWPx / 100f
+
+            // Cassette well inner guide tracks around the cassette
+            val trackPad = 5f.dp.toPx()
+            drawRoundRect(
+                color = Color(0xFF060708),
+                topLeft = Offset(tapeLeftPx - trackPad, tapeTopPx - trackPad),
+                size = Size(tapeWPx + trackPad * 2, tapeHPx + trackPad * 2),
+                cornerRadius = CornerRadius(8.dp.toPx()),
+            )
+            drawRoundRect(
+                color = Color.White.copy(alpha = 0.05f),
+                topLeft = Offset(tapeLeftPx - trackPad, tapeTopPx - trackPad),
+                size = Size(tapeWPx + trackPad * 2, tapeHPx + trackPad * 2),
+                cornerRadius = CornerRadius(8.dp.toPx()),
+                style = Stroke(1f.dp.toPx()),
+            )
+
+            // Mechanical drive spindle indicators perfectly aligned behind the reel hubs
+            val hubLX = tapeLeftPx + 28.75f * uPx
+            val hubLY = tapeTopPx + 32f * uPx
+            val hubRX = tapeLeftPx + 71.25f * uPx
+            val hubRY = tapeTopPx + 32f * uPx
+            val spindleR = 13.dp.toPx()
+
+            // Left spindle teeth
+            drawCircle(Color(0xFF1C1F24), radius = spindleR, center = Offset(hubLX, hubLY))
+            drawCircle(Color.White.copy(alpha = 0.22f), radius = spindleR, center = Offset(hubLX, hubLY), style = Stroke(1f))
+            drawCircle(Color(0xFF32363D), radius = spindleR * 0.45f, center = Offset(hubLX, hubLY))
+
+            // Right spindle teeth
+            drawCircle(Color(0xFF1C1F24), radius = spindleR, center = Offset(hubRX, hubRY))
+            drawCircle(Color.White.copy(alpha = 0.22f), radius = spindleR, center = Offset(hubRX, hubRY), style = Stroke(1f))
+            drawCircle(Color(0xFF32363D), radius = spindleR * 0.45f, center = Offset(hubRX, hubRY))
+
+            // Lower/Upper tape head bridge assembly (permalloy head, capstan, pinch roller)
+            val headW = tapeWPx * 0.26f
+            val headH = 8.dp.toPx()
+            val headLeft = tapeLeftPx + (tapeWPx - headW) / 2f
+            val headTop = if (inverted) {
+                (tapeTopPx - headH - 1f.dp.toPx()).coerceAtLeast(1f.dp.toPx())
+            } else {
+                (tapeTopPx + tapeHPx + 2f.dp.toPx()).coerceAtMost(h - headH - 2f.dp.toPx())
+            }
+            drawRoundRect(
+                brush = Brush.verticalGradient(listOf(Color(0xFF555960), Color(0xFF2B2D31))),
+                topLeft = Offset(headLeft, headTop),
+                size = Size(headW, headH),
+                cornerRadius = CornerRadius(2f.dp.toPx()),
+            )
+            drawRoundRect(
+                color = Color.White.copy(alpha = 0.35f),
+                topLeft = Offset(headLeft, headTop),
+                size = Size(headW, headH),
+                cornerRadius = CornerRadius(2f.dp.toPx()),
+                style = Stroke(0.8f),
+            )
+
+            // Soft directional ambient drop shadow cast by the open cassette door onto the bay floor
+            if (doorProgress > 0.05f) {
+                val shadowH = (72.dp * doorProgress).toPx()
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        listOf(
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.20f * doorProgress),
+                            Color.Black.copy(alpha = 0.50f * doorProgress),
+                            Color.Black.copy(alpha = 0.78f * doorProgress),
+                        ),
+                        h - shadowH,
+                        h,
+                    ),
+                    topLeft = Offset(0f, h - shadowH),
+                    size = Size(w, shadowH),
+                )
+            }
+        }
+
+        // Full cassette sitting in the chamber
+        val tapeMod = if (hasCustomTape) {
+            Modifier
+                .offset(tapeOffset.x, tapeOffset.y)
+                .size(tapeSize.width, tapeSize.height)
+        } else {
+            Modifier
+                .align(Alignment.Center)
+                .fillMaxSize(0.92f)
+                .padding(vertical = 4.dp)
+        }
+        FullCassette(
+            ui = ui,
+            anim = anim,
+            vertical = vertical,
+            inverted = inverted,
+            modifier = tapeMod,
+        )
+
+        // Prompt overlay
+        if (promptToClose) {
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 8.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color(0xCC0E1013))
+                    .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+            ) {
+                Text(
+                    "TAP CASSETTE OR CLOSE TO PLAY",
+                    style = TextStyle(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = DeckColors.Accent,
+                        letterSpacing = 1.sp,
+                    ),
+                )
+            }
+        }
+    }
+}
 
 /**
  * The WM-RX707 wide rounded-stadium smoked acrylic window with the cassette behind it.
@@ -172,6 +406,7 @@ private fun DrawScope.drawMaXgCassette(
     shellTint: Color,
     measurer: TextMeasurer,
     u: Float,
+    inverted: Boolean = false,
 ) {
     val shellRR = RoundRect(0f, 0f, 100f, 64f, CornerRadius(3.4f))
     val shellPath = Path().apply { addRoundRect(shellRR) }
@@ -232,7 +467,13 @@ private fun DrawScope.drawMaXgCassette(
     clipPath(stripPath) {
         drawRect(Color(0xFF141619).copy(alpha = 0.86f), Offset(11f, 12.6f), Size(78f, 5.6f))
         ui.artwork?.let { art ->
-            drawCroppedImage(art, Rect(11f, 12.6f, 20f, 18.2f))
+            if (inverted) {
+                withTransform({ rotate(180f, Offset(15.5f, 15.4f)) }) {
+                    drawCroppedImage(art, Rect(11f, 12.6f, 20f, 18.2f))
+                }
+            } else {
+                drawCroppedImage(art, Rect(11f, 12.6f, 20f, 18.2f))
+            }
         }
         drawRect(accent, Offset(11f, 17.5f), Size(78f, 0.7f))
     }
@@ -247,7 +488,15 @@ private fun DrawScope.drawMaXgCassette(
             overflow = TextOverflow.Ellipsis,
             constraints = Constraints(maxWidth = (maxWidthMm * u).toInt().coerceAtLeast(1)),
         )
-        withTransform({ translate(x, y); scale(1f / u, 1f / u, Offset.Zero) }) { drawText(layout) }
+        val twMm = layout.size.width / u
+        val thMm = layout.size.height / u
+        withTransform({
+            translate(x, y)
+            if (inverted) {
+                rotate(180f, Offset(twMm / 2f, thMm / 2f))
+            }
+            scale(1f / u, 1f / u, Offset.Zero)
+        }) { drawText(layout) }
     }
 
     val printBold = TextStyle(fontFamily = FontFamily.SansSerif, color = Color(0xFFF0F3F7), fontWeight = FontWeight.Bold)
@@ -341,6 +590,7 @@ private fun DrawScope.drawClassicCassette(
     shell: Color,
     measurer: TextMeasurer,
     u: Float,
+    inverted: Boolean = false,
 ) {
     val light = shell.luminance() > 0.5f
     val shellRR = RoundRect(0f, 0f, 100f, 64f, CornerRadius(3.4f))
@@ -380,7 +630,7 @@ private fun DrawScope.drawClassicCassette(
     }
     drawPath(windowPath, Color.Black.copy(alpha = 0.55f), style = Stroke(0.5f))
 
-    drawLabel(ui, ui.label, measurer, windowRR, u)
+    drawLabel(ui, ui.label, measurer, windowRR, u, inverted = inverted)
     drawBottomBridge(shell, light)
 
     listOf(Offset(4.4f, 4.4f), Offset(95.6f, 4.4f), Offset(4.4f, 59.6f), Offset(95.6f, 59.6f), Offset(50f, 55.5f))
@@ -453,7 +703,14 @@ private fun DrawScope.drawHub(center: Offset, angle: Float, delta: Float) {
     drawCircle(Color(0xFF202124), 0.55f, center)
 }
 
-private fun DrawScope.drawLabel(ui: DeckUi, palette: LabelPalette, measurer: TextMeasurer, window: RoundRect, u: Float) {
+private fun DrawScope.drawLabel(
+    ui: DeckUi,
+    palette: LabelPalette,
+    measurer: TextMeasurer,
+    window: RoundRect,
+    u: Float,
+    inverted: Boolean = false,
+) {
     val labelRect = RoundRect(5.5f, 4f, 94.5f, 48.5f, CornerRadius(2f))
     val labelPath = Path().apply {
         fillType = PathFillType.EvenOdd
@@ -463,7 +720,15 @@ private fun DrawScope.drawLabel(ui: DeckUi, palette: LabelPalette, measurer: Tex
     val art = ui.artwork
     clipPath(labelPath) {
         if (art != null) {
-            drawCroppedImage(art, Rect(labelRect.left, labelRect.top, labelRect.right, labelRect.bottom))
+            if (inverted) {
+                withTransform({
+                    rotate(180f, Offset((labelRect.left + labelRect.right) / 2f, (labelRect.top + labelRect.bottom) / 2f))
+                }) {
+                    drawCroppedImage(art, Rect(labelRect.left, labelRect.top, labelRect.right, labelRect.bottom))
+                }
+            } else {
+                drawCroppedImage(art, Rect(labelRect.left, labelRect.top, labelRect.right, labelRect.bottom))
+            }
             drawRect(
                 Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.15f), Color.Transparent, Color.Black.copy(alpha = 0.3f)), 4f, 48.5f),
                 Offset(5.5f, 4f),
@@ -492,7 +757,15 @@ private fun DrawScope.drawLabel(ui: DeckUi, palette: LabelPalette, measurer: Tex
             overflow = TextOverflow.Ellipsis,
             constraints = Constraints(maxWidth = (maxWidthMm * u).toInt().coerceAtLeast(1)),
         )
-        withTransform({ translate(x, y); scale(1f / u, 1f / u, Offset.Zero) }) { drawText(layout) }
+        val twMm = layout.size.width / u
+        val thMm = layout.size.height / u
+        withTransform({
+            translate(x, y)
+            if (inverted) {
+                rotate(180f, Offset(twMm / 2f, thMm / 2f))
+            }
+            scale(1f / u, 1f / u, Offset.Zero)
+        }) { drawText(layout) }
     }
     val hand = TextStyle(fontFamily = FontFamily.Cursive, color = ink, fontWeight = FontWeight.Bold)
     val print = TextStyle(fontFamily = FontFamily.SansSerif, color = ink, fontWeight = FontWeight.Bold, letterSpacing = (0.3f * u).toSp())

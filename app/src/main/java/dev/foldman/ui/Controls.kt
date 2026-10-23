@@ -157,9 +157,9 @@ fun Modifier.paintedBody(
 }
 
 /**
- * Authentic Sony Walkman WM-RX707 header badging:
- * Left: "SONY" slab-serif metallic badge.
- * Right: Red "RECORDING", silver "WALKMAN" wordmark, "[AVLS]" pill badge, and "WM-RX707" model number.
+ * Tapeman header badging:
+ * Left: "ARTY" slab-serif metallic badge.
+ * Right: Silver "TAPEMAN" wordmark, "[AVLS]" pill badge, and version number.
  */
 @Composable
 fun Rx707Header(modifier: Modifier = Modifier, compact: Boolean = false) {
@@ -170,7 +170,7 @@ fun Rx707Header(modifier: Modifier = Modifier, compact: Boolean = false) {
     ) {
         Column {
             Text(
-                "SONY",
+                "ARTY",
                 style = TextStyle(
                     fontFamily = FontFamily.Serif,
                     fontWeight = FontWeight.Black,
@@ -185,17 +185,7 @@ fun Rx707Header(modifier: Modifier = Modifier, compact: Boolean = false) {
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(
-                "RECORDING",
-                style = TextStyle(
-                    fontFamily = FontFamily.SansSerif,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = if (compact) 8.sp else 10.sp,
-                    letterSpacing = 2.2.sp,
-                    color = DeckColors.Accent,
-                ),
-            )
-            Text(
-                "WALKMAN",
+                "TAPEMAN",
                 style = TextStyle(
                     fontFamily = FontFamily.SansSerif,
                     fontWeight = FontWeight.Black,
@@ -226,12 +216,12 @@ fun Rx707Header(modifier: Modifier = Modifier, compact: Boolean = false) {
                     )
                 }
                 Text(
-                    "WM-RX707",
+                    "v0.2.1",
                     style = TextStyle(
                         fontFamily = FontFamily.SansSerif,
                         fontWeight = FontWeight.Bold,
-                        fontSize = if (compact) 8.5.sp else 10.sp,
-                        letterSpacing = 1.2.sp,
+                        fontSize = if (compact) 7.5.sp else 9.sp,
+                        letterSpacing = 1.0.sp,
                         color = Color(0xFFC8CDD4),
                     ),
                 )
@@ -402,7 +392,7 @@ fun Rx707HoldSwitch(
  * Tapping or sliding it pops open the cassette Tape Shelf.
  */
 @Composable
-fun Rx707OpenLatch(onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun Rx707OpenLatch(onClick: () -> Unit, modifier: Modifier = Modifier, label: String = "OPEN") {
     val action by rememberUpdatedState(onClick)
     val view = LocalView.current
     val haptics = LocalHaptics.current
@@ -411,12 +401,12 @@ fun Rx707OpenLatch(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val slide by animateFloatAsState(if (pressed) 1f else 0f, spring(stiffness = 2200f), label = "openLatch")
 
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("OPEN", style = EngravedCaps.copy(fontSize = 7.5.sp, letterSpacing = 1.4.sp, color = Color(0xFF2D3035)))
+        Text(label, style = EngravedCaps.copy(fontSize = 7.5.sp, letterSpacing = 1.4.sp, color = Color(0xFF2D3035)))
         Spacer(Modifier.height(2.dp))
         Canvas(
             Modifier
                 .size(58.dp, 26.dp)
-                .semantics { role = Role.Button; contentDescription = "Open tape shelf" }
+                .semantics { role = Role.Button; contentDescription = "$label cassette door" }
                 .pointerInput(Unit) {
                     detectTapGestures(onPress = {
                         pressed = true
