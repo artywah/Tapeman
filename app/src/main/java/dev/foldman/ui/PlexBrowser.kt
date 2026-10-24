@@ -22,8 +22,10 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -31,13 +33,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.foldman.deck.PlexUi
 import dev.foldman.plex.PlexAlbum
+import dev.foldman.plex.PlexArtist
 import dev.foldman.plex.PlexSectionTab
 
 class PlexActions(
@@ -45,6 +50,9 @@ class PlexActions(
     val setSearch: (String) -> Unit,
     val setLetter: (String?) -> Unit,
     val refresh: () -> Unit,
+    val loadMore: () -> Unit,
+    val openArtist: (PlexArtist) -> Unit,
+    val closeArtist: () -> Unit,
     val openAlbum: (PlexAlbum) -> Unit,
     val closeAlbum: () -> Unit,
     val playAlbum: (PlexAlbum?, Int) -> Unit,
@@ -71,6 +79,24 @@ fun PlexBrowser(
     val titleStyle = TextStyle(color = ink, fontSize = 14.sp, fontWeight = FontWeight.Medium)
     val small = TextStyle(color = sub, fontSize = 11.sp, lineHeight = 15.sp)
     val link = small.copy(color = accent, fontWeight = FontWeight.Bold)
+
+    var searchFieldValue by remember {
+        mutableStateOf(
+            TextFieldValue(
+                text = plex.searchQuery,
+                selection = TextRange(plex.searchQuery.length)
+            )
+        )
+    }
+
+    LaunchedEffect(plex.searchQuery) {
+        if (plex.searchQuery != searchFieldValue.text) {
+            searchFieldValue = TextFieldValue(
+                text = plex.searchQuery,
+                selection = TextRange(plex.searchQuery.length)
+            )
+        }
+    }
 
     Column(modifier) {
         if (plex.editingSettings) {
@@ -118,7 +144,8 @@ fun PlexBrowser(
         if (plex.openAlbum != null) {
             val album = plex.openAlbum
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("‹ ${plex.tab.label}", style = link, modifier = Modifier.clickable(onClick = actions.closeAlbum).padding(vertical = 4.dp))
+                val backLabel = if (plex.openArtist != null) plex.openArtist.name else plex.tab.label
+                Text("‹ $backLabel", style = link, modifier = Modifier.clickable(onClick = actions.closeAlbum).padding(vertical = 4.dp))
                 Spacer(Modifier.weight(1f))
                 if (plex.tracks.isNotEmpty()) {
                     PlexPill("Load Tape", accent) { actions.playAlbum(album, 0) }
@@ -153,6 +180,61 @@ fun PlexBrowser(
                             }
                         }
                         Text("▶", style = small.copy(color = accent))
+                    }
+                }
+            }
+        } else if (plex.openArtist != null) {
+            val artist = plex.openArtist
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("‹ Artists", style = link, modifier = Modifier.clickable(onClick = actions.closeArtist).padding(vertical = 4.dp))
+            }
+            Spacer(Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                UrlThumb(artist.thumbUrl, Modifier.size(42.dp).clip(RoundedCornerShape(50)))
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(artist.name, style = titleStyle.copy(fontWeight = FontWeight.SemiBold), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (plex.artistAlbums.isNotEmpty()) {
+                        Text("${plex.artistAlbums.size} albums", style = small)
+                    }
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            if (plex.loading) {
+                Text("Loading albums by ${artist.name}…", style = small)
+            } else if (plex.artistAlbums.isEmpty() && plex.message == null) {
+                Text("No albums found.", style = small)
+            }
+            LazyColumn {
+                items(plex.artistAlbums, key = { it.id }) { item ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { actions.openAlbum(item) }
+                            .padding(vertical = 4.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        UrlThumb(item.coverUrl, Modifier.size(38.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(item.title, style = titleStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            val subText = buildList {
+                                if (item.year > 0) add(item.year.toString())
+                                if (item.trackCount > 0) add("${item.trackCount} tracks")
+                            }.joinToString(" · ")
+                            if (subText.isNotEmpty()) {
+                                Text(subText, style = small, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                        Text(
+                            "▶",
+                            style = link.copy(fontSize = 13.sp),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable { actions.playAlbum(item, 0) }
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                        )
                     }
                 }
             }
@@ -197,20 +279,39 @@ fun PlexBrowser(
                 Text("⌕", style = small.copy(fontSize = 12.sp))
                 Spacer(Modifier.width(6.dp))
                 Box(Modifier.weight(1f)) {
-                    if (plex.searchQuery.isEmpty()) {
-                        Text("Search ${plex.libraryName}…", style = small)
+                    if (searchFieldValue.text.isEmpty()) {
+                        val placeholder = when (plex.tab) {
+                            PlexSectionTab.ARTISTS -> "Search artists…"
+                            PlexSectionTab.PLAYLISTS -> "Search playlists…"
+                            else -> "Search ${plex.libraryName}…"
+                        }
+                        Text(placeholder, style = small)
                     }
                     BasicTextField(
-                        value = plex.searchQuery,
-                        onValueChange = actions.setSearch,
+                        value = searchFieldValue,
+                        onValueChange = { newValue ->
+                            searchFieldValue = newValue
+                            if (newValue.text != plex.searchQuery) {
+                                actions.setSearch(newValue.text)
+                            }
+                        },
                         singleLine = true,
                         textStyle = small.copy(color = ink),
                         cursorBrush = SolidColor(accent),
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                if (plex.searchQuery.isNotEmpty()) {
-                    Text("✕", style = small.copy(color = accent), modifier = Modifier.clickable { actions.setSearch("") }.padding(horizontal = 4.dp))
+                if (searchFieldValue.text.isNotEmpty()) {
+                    Text(
+                        "✕",
+                        style = small.copy(color = accent),
+                        modifier = Modifier
+                            .clickable {
+                                searchFieldValue = TextFieldValue("")
+                                actions.setSearch("")
+                            }
+                            .padding(horizontal = 4.dp),
+                    )
                 }
             }
             Spacer(Modifier.height(4.dp))
@@ -240,38 +341,97 @@ fun PlexBrowser(
 
             if (plex.loading) {
                 Text("Connecting to ${plex.serverUrl}…", style = small)
-            } else if (plex.items.isEmpty() && plex.message == null) {
-                Text("No items found.", style = small)
-            }
+            } else if (plex.tab == PlexSectionTab.ARTISTS) {
+                if (plex.artists.isEmpty() && plex.message == null) {
+                    Text("No artists found.", style = small)
+                }
 
-            LazyColumn {
-                items(plex.items, key = { it.id }) { item ->
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { actions.openAlbum(item) }
-                            .padding(vertical = 4.dp, horizontal = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        UrlThumb(item.coverUrl, Modifier.size(38.dp))
-                        Spacer(Modifier.width(10.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(item.title, style = titleStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            val subText = buildList {
-                                add(item.artist)
-                                if (item.year > 0) add(item.year.toString())
-                            }.joinToString(" · ")
-                            Text(subText, style = small, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                LazyColumn {
+                    items(plex.artists, key = { it.id }) { artist ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { actions.openArtist(artist) }
+                                .padding(vertical = 5.dp, horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            UrlThumb(artist.thumbUrl, Modifier.size(38.dp).clip(RoundedCornerShape(50)))
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(artist.name, style = titleStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                artist.summary?.takeIf { it.isNotBlank() }?.let {
+                                    Text(it, style = small, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                            Text("›", style = link.copy(fontSize = 16.sp, color = sub), modifier = Modifier.padding(horizontal = 8.dp))
                         }
-                        Text(
-                            "▶",
-                            style = link.copy(fontSize = 13.sp),
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .clickable { actions.playAlbum(item, 0) }
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                        )
+                    }
+                    if (plex.canLoadMore && plex.artists.isNotEmpty()) {
+                        item(key = "load_more_artists") {
+                            LaunchedEffect(Unit) {
+                                actions.loadMore()
+                            }
+                            if (plex.loadingMore) {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(8.dp),
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Text("Loading more…", style = small)
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                if (plex.items.isEmpty() && plex.message == null) {
+                    Text("No items found.", style = small)
+                }
+
+                LazyColumn {
+                    items(plex.items, key = { it.id }) { item ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { actions.openAlbum(item) }
+                                .padding(vertical = 4.dp, horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            UrlThumb(item.coverUrl, Modifier.size(38.dp))
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(item.title, style = titleStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                val subText = buildList {
+                                    add(item.artist)
+                                    if (item.year > 0) add(item.year.toString())
+                                }.joinToString(" · ")
+                                Text(subText, style = small, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            Text(
+                                "▶",
+                                style = link.copy(fontSize = 13.sp),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .clickable { actions.playAlbum(item, 0) }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                            )
+                        }
+                    }
+                    if (plex.canLoadMore && plex.items.isNotEmpty()) {
+                        item(key = "load_more_items") {
+                            LaunchedEffect(Unit) {
+                                actions.loadMore()
+                            }
+                            if (plex.loadingMore) {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(8.dp),
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Text("Loading more…", style = small)
+                                }
+                            }
+                        }
                     }
                 }
             }

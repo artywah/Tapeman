@@ -156,6 +156,9 @@ fun FoldmanScreen(
             setSearch = vm::setPlexSearch,
             setLetter = vm::setPlexLetter,
             refresh = vm::loadPlexItems,
+            loadMore = vm::loadMorePlexItems,
+            openArtist = vm::openPlexArtist,
+            closeArtist = vm::closePlexArtist,
             openAlbum = vm::openPlexAlbum,
             closeAlbum = vm::closePlexAlbum,
             playAlbum = { album, idx ->

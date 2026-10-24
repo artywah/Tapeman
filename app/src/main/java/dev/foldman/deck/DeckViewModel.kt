@@ -27,6 +27,7 @@ import dev.foldman.playback.DspAudioProcessor
 import dev.foldman.playback.LocalBackend
 import dev.foldman.playback.LocalLibrary
 import dev.foldman.plex.PlexAlbum
+import dev.foldman.plex.PlexArtist
 import dev.foldman.plex.PlexClient
 import dev.foldman.plex.PlexSectionTab
 import dev.foldman.remote.RemoteBackend
@@ -484,41 +485,74 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun setPlexTab(tab: PlexSectionTab) {
-        if (plex.value.tab == tab && plex.value.openAlbum == null) return
-        plex.value = plex.value.copy(tab = tab, openAlbum = null, tracks = emptyList(), selectedLetter = null)
+        if (plex.value.tab == tab && plex.value.openAlbum == null && plex.value.openArtist == null) return
+        plex.value = plex.value.copy(
+            tab = tab,
+            openArtist = null,
+            artistAlbums = emptyList(),
+            openAlbum = null,
+            tracks = emptyList(),
+            selectedLetter = null,
+        )
+        tick()
         loadPlexItems()
     }
 
     fun setPlexSearch(query: String) {
+        if (plex.value.searchQuery == query) return
         plex.value = plex.value.copy(searchQuery = query, selectedLetter = null)
-        loadPlexItems()
+        tick()
+        loadPlexItems(debounceMs = if (query.isNotBlank()) 250L else 0L)
     }
 
     fun setPlexLetter(letter: String?) {
         val next = if (plex.value.selectedLetter == letter) null else letter
-        plex.value = plex.value.copy(selectedLetter = next, openAlbum = null)
+        plex.value = plex.value.copy(selectedLetter = next, openAlbum = null, openArtist = null)
+        tick()
         loadPlexItems()
     }
 
-    fun loadPlexItems() {
+    fun loadPlexItems(debounceMs: Long = 0L) {
         plexJob?.cancel()
         val state = plex.value
         plexJob = viewModelScope.launch {
+            if (debounceMs > 0) {
+                delay(debounceMs)
+            }
             plex.value = plex.value.copy(loading = true, message = null)
+            tick()
             try {
-                val items = plexClient.fetchItems(
-                    tab = state.tab,
-                    searchQuery = state.searchQuery,
-                    letter = state.selectedLetter,
-                )
-                plex.value = plex.value.copy(items = items, loading = false)
-                // Auto-queue first album on initial launch if nothing is loaded in Plex yet
-                if (plexLoadedTracks.isEmpty() && items.isNotEmpty()) {
-                    val firstAlbum = items.first()
-                    runCatching { plexClient.fetchTracks(firstAlbum) }.getOrNull()?.takeIf { it.isNotEmpty() }?.let { firstTracks ->
-                        plexLoadedTracks = firstTracks
-                        plex.value = plex.value.copy(loadedAlbumTitle = firstAlbum.title)
-                        plexBackend.setTracks(firstTracks, startIndex = 0, loadIntoPlayer = source == Source.PLEX)
+                if (state.tab == PlexSectionTab.ARTISTS) {
+                    val artists = plexClient.fetchArtists(
+                        searchQuery = state.searchQuery,
+                        letter = state.selectedLetter,
+                        start = 0,
+                    )
+                    plex.value = plex.value.copy(
+                        artists = artists,
+                        loading = false,
+                        canLoadMore = if (state.selectedLetter != null) artists.size >= 1000 else artists.size >= 200,
+                    )
+                } else {
+                    val items = plexClient.fetchItems(
+                        tab = state.tab,
+                        searchQuery = state.searchQuery,
+                        letter = state.selectedLetter,
+                        start = 0,
+                    )
+                    plex.value = plex.value.copy(
+                        items = items,
+                        loading = false,
+                        canLoadMore = items.size >= 200,
+                    )
+                    // Auto-queue first album on initial launch if nothing is loaded in Plex yet
+                    if (plexLoadedTracks.isEmpty() && items.isNotEmpty()) {
+                        val firstAlbum = items.first()
+                        runCatching { plexClient.fetchTracks(firstAlbum) }.getOrNull()?.takeIf { it.isNotEmpty() }?.let { firstTracks ->
+                            plexLoadedTracks = firstTracks
+                            plex.value = plex.value.copy(loadedAlbumTitle = firstAlbum.title)
+                            plexBackend.setTracks(firstTracks, startIndex = 0, loadIntoPlayer = source == Source.PLEX)
+                        }
                     }
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -526,11 +560,91 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: Exception) {
                 plex.value = plex.value.copy(
                     loading = false,
+                    canLoadMore = false,
                     message = e.message ?: "Couldn't reach Plex server.",
                 )
             }
             tick()
         }
+    }
+
+    fun loadMorePlexItems() {
+        if (plex.value.loading || plex.value.loadingMore || !plex.value.canLoadMore) return
+        val state = plex.value
+        val isArtists = state.tab == PlexSectionTab.ARTISTS
+        val currentCount = if (isArtists) state.artists.size else state.items.size
+        if (currentCount == 0) return
+
+        plex.value = plex.value.copy(loadingMore = true)
+        tick()
+
+        viewModelScope.launch {
+            try {
+                val pageSize = if (state.selectedLetter != null) 500 else 150
+                if (isArtists) {
+                    val more = plexClient.fetchArtists(
+                        searchQuery = state.searchQuery,
+                        letter = state.selectedLetter,
+                        start = currentCount,
+                        limit = pageSize,
+                    )
+                    plex.value = plex.value.copy(
+                        artists = state.artists + more,
+                        canLoadMore = more.size >= pageSize,
+                        loadingMore = false,
+                    )
+                } else {
+                    val more = plexClient.fetchItems(
+                        tab = state.tab,
+                        searchQuery = state.searchQuery,
+                        letter = state.selectedLetter,
+                        start = currentCount,
+                        limit = pageSize,
+                    )
+                    plex.value = plex.value.copy(
+                        items = state.items + more,
+                        canLoadMore = more.size >= pageSize,
+                        loadingMore = false,
+                    )
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                plex.value = plex.value.copy(loadingMore = false, canLoadMore = false)
+            }
+            tick()
+        }
+    }
+
+    fun openPlexArtist(artist: PlexArtist) {
+        plex.value = plex.value.copy(
+            openArtist = artist,
+            artistAlbums = emptyList(),
+            openAlbum = null,
+            tracks = emptyList(),
+            loading = true,
+            message = null,
+        )
+        tick()
+        plexJob?.cancel()
+        plexJob = viewModelScope.launch {
+            try {
+                val albums = plexClient.fetchArtistAlbums(artist.id)
+                if (plex.value.openArtist?.id == artist.id) {
+                    plex.value = plex.value.copy(artistAlbums = albums, loading = false)
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                plex.value = plex.value.copy(loading = false, message = e.message ?: "Failed to load artist albums.")
+            }
+            tick()
+        }
+    }
+
+    fun closePlexArtist() {
+        plex.value = plex.value.copy(openArtist = null, artistAlbums = emptyList(), openAlbum = null)
+        tick()
     }
 
     fun openPlexAlbum(album: PlexAlbum) {

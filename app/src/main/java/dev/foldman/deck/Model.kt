@@ -3,6 +3,7 @@ package dev.foldman.deck
 import android.graphics.Bitmap
 import android.net.Uri
 import dev.foldman.plex.PlexAlbum
+import dev.foldman.plex.PlexArtist
 import dev.foldman.plex.PlexClient
 import dev.foldman.plex.PlexSectionTab
 import dev.foldman.spotify.SpotifyCollection
@@ -62,10 +63,15 @@ data class PlexUi(
     val searchQuery: String = "",
     val selectedLetter: String? = null,
     val items: List<PlexAlbum> = emptyList(),
+    val artists: List<PlexArtist> = emptyList(),
+    val openArtist: PlexArtist? = null,
+    val artistAlbums: List<PlexAlbum> = emptyList(),
     val openAlbum: PlexAlbum? = null,
     val tracks: List<LocalTrack> = emptyList(),
     val loadedAlbumTitle: String? = null,
     val loading: Boolean = false,
+    val loadingMore: Boolean = false,
+    val canLoadMore: Boolean = true,
     val editingSettings: Boolean = false,
     val message: String? = null,
 )

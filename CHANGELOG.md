@@ -2,6 +2,23 @@
 
 All notable changes to Tapeman. Versions follow [semantic versioning](https://semver.org); downloads are on the [releases page](https://github.com/artywah/Tapeman/releases).
 
+## [0.2.2] — 2026-10-24
+
+### Added
+- **Plex Artists Tab & Discography View:**
+  - Dedicated **ARTISTS** section tab in the Plex library browser with circular artist avatars.
+  - A–Z index jump rail and live search specifically targeting artists.
+  - Full artist discography drill-down: tapping any artist displays all of their albums sorted chronologically with cover art, release year, and direct tape playback or tracklist view.
+  - Infinite scroll / pagination (`loadMore`) for seamless browsing through large artist catalogs and letter filters.
+
+### Fixed
+- **Search Text Entry & Cursor Position:**
+  - Fixed an issue where Compose `BasicTextField` state was asynchronously overwritten by background ticks, causing the cursor to reset to index 0 after the first keystroke (e.g., typing `"blondie"` resulting in `"londieb"`).
+  - Maintained synchronous `TextFieldValue` tracking with automatic upstream synchronization.
+  - Added smooth 250ms debouncing to live search queries to avoid redundant network cancellations and UI jank while typing.
+- **Plex Artist Metadata Filtering:**
+  - Fixed an issue where artists containing soft-deleted or trash metadata markers in Plex (such as Blondie) were mistakenly excluded from artist listings and search queries.
+
 ## [0.2.1] — 2026-10-23
 
 Major evolution and redesign to **Tapeman**.

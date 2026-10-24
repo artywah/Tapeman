@@ -11,11 +11,19 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
 enum class PlexSectionTab(val label: String) {
+    ARTISTS("Artists"),
     ALL("Albums"),
     RECENT("Recent"),
     POPULAR("Popular"),
     PLAYLISTS("Playlists"),
 }
+
+data class PlexArtist(
+    val id: String,
+    val name: String,
+    val thumbUrl: String? = null,
+    val summary: String? = null,
+)
 
 data class PlexAlbum(
     val id: String,
@@ -106,7 +114,8 @@ class PlexClient(
         tab: PlexSectionTab,
         searchQuery: String = "",
         letter: String? = null,
-        limit: Int = 120,
+        start: Int = 0,
+        limit: Int = 200,
     ): List<PlexAlbum> = withContext(Dispatchers.IO) {
         if (plexToken.isBlank()) throw IllegalStateException("Plex token is required.")
         if (tab == PlexSectionTab.PLAYLISTS) {
@@ -130,7 +139,7 @@ class PlexClient(
                     append("&title=$q")
                 }
             }
-            append("&X-Plex-Container-Start=0&X-Plex-Container-Size=$limit")
+            append("&X-Plex-Container-Start=$start&X-Plex-Container-Size=$limit")
         }
         val container = getJson(path).optJSONObject("MediaContainer") ?: return@withContext emptyList()
         val meta = container.optJSONArray("Metadata") ?: return@withContext emptyList()
@@ -221,6 +230,77 @@ class PlexClient(
                         artist = artist,
                         folder = albumTitle,
                         coverUri = coverUri,
+                    )
+                )
+            }
+        }
+    }
+
+    suspend fun fetchArtists(
+        searchQuery: String = "",
+        letter: String? = null,
+        start: Int = 0,
+        limit: Int = if (letter != null) 1000 else 200,
+    ): List<PlexArtist> = withContext(Dispatchers.IO) {
+        if (plexToken.isBlank()) throw IllegalStateException("Plex token is required.")
+        val sectionId = findMusicSectionId()
+        val path = buildString {
+            if (letter != null && searchQuery.isBlank()) {
+                val enc = if (letter == "#") "%23" else URLEncoder.encode(letter, StandardCharsets.UTF_8.name())
+                append("/library/sections/$sectionId/firstCharacter/$enc?type=8&sort=titleSort:asc")
+            } else {
+                append("/library/sections/$sectionId/all?type=8&sort=titleSort:asc")
+                if (searchQuery.isNotBlank()) {
+                    val q = URLEncoder.encode(searchQuery.trim(), StandardCharsets.UTF_8.name())
+                    append("&title=$q")
+                }
+            }
+            append("&X-Plex-Container-Start=$start&X-Plex-Container-Size=$limit")
+        }
+        val container = getJson(path).optJSONObject("MediaContainer") ?: return@withContext emptyList()
+        val meta = container.optJSONArray("Metadata") ?: return@withContext emptyList()
+        buildList {
+            for (i in 0 until meta.length()) {
+                val item = meta.getJSONObject(i)
+                val key = item.optString("ratingKey")
+                val name = item.optString("title").trim()
+                if (key.isBlank() || name.isBlank()) continue
+                val thumb = item.optString("thumb")
+                add(
+                    PlexArtist(
+                        id = key,
+                        name = name,
+                        thumbUrl = authedUrl(thumb),
+                        summary = item.optString("summary").takeIf { it.isNotBlank() },
+                    )
+                )
+            }
+        }
+    }
+
+    suspend fun fetchArtistAlbums(artistId: String): List<PlexAlbum> = withContext(Dispatchers.IO) {
+        if (plexToken.isBlank()) throw IllegalStateException("Plex token is required.")
+        val path = "/library/metadata/$artistId/children"
+        val container = getJson(path).optJSONObject("MediaContainer") ?: return@withContext emptyList()
+        val meta = container.optJSONArray("Metadata") ?: return@withContext emptyList()
+        buildList {
+            for (i in 0 until meta.length()) {
+                val item = meta.getJSONObject(i)
+                if (item.has("deletedAt")) continue
+                val key = item.optString("ratingKey")
+                val title = item.optString("title").trim()
+                val artist = item.optString("parentTitle").trim()
+                if (key.isBlank() || title.isBlank()) continue
+                val thumb = item.optString("thumb").ifBlank { item.optString("parentThumb") }
+                add(
+                    PlexAlbum(
+                        id = key,
+                        title = title,
+                        artist = artist,
+                        year = item.optInt("year", 0),
+                        coverUrl = authedUrl(thumb),
+                        isPlaylist = false,
+                        trackCount = item.optInt("leafCount", 0),
                     )
                 )
             }
