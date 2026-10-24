@@ -515,6 +515,11 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     fun loadPlexItems(debounceMs: Long = 0L) {
         plexJob?.cancel()
         val state = plex.value
+        if (state.token.isBlank()) {
+            plex.value = plex.value.copy(loading = false, items = emptyList(), artists = emptyList())
+            tick()
+            return
+        }
         plexJob = viewModelScope.launch {
             if (debounceMs > 0) {
                 delay(debounceMs)

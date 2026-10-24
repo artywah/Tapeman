@@ -99,13 +99,15 @@ fun PlexBrowser(
     }
 
     Column(modifier) {
-        if (plex.editingSettings) {
+        if (plex.editingSettings || plex.token.isBlank()) {
             var url by rememberSaveable(plex.serverUrl) { mutableStateOf(plex.serverUrl) }
             var token by rememberSaveable(plex.token) { mutableStateOf(plex.token) }
             var lib by rememberSaveable(plex.libraryName) { mutableStateOf(plex.libraryName) }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Plex Server Settings", style = titleStyle.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f))
-                Text("Cancel", style = link.copy(color = sub), modifier = Modifier.clickable { actions.toggleSettings(false) }.padding(4.dp))
+                if (plex.token.isNotBlank()) {
+                    Text("Cancel", style = link.copy(color = sub), modifier = Modifier.clickable { actions.toggleSettings(false) }.padding(4.dp))
+                }
             }
             Spacer(Modifier.height(6.dp))
             OutlinedTextField(
