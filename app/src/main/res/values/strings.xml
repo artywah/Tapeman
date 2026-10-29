@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">Tapeman</string>
+    <string name="widget_cassette_label">Tapeman Cassette (2x1)</string>
+    <string name="widget_cassette_description">Compact Cassette displaying current song and tape reels</string>
+    <string name="widget_deck_label">Tapeman Walkman Deck (4x2)</string>
+    <string name="widget_deck_description">Sony Walkman deck with cassette tape and playback controls</string>
+    <string name="notification_channel_now_playing">Now Playing</string>
 </resources>

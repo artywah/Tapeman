@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Unfilled groove track -->
+    <item android:id="@android:id/background">
+        <shape android:shape="rectangle">
+            <corners android:radius="2dp" />
+            <solid android:color="#0E1014" />
+            <stroke
+                android:width="0.8dp"
+                android:color="#252A34" />
+        </shape>
+    </item>
+    <!-- Walkman orange active progress fill -->
+    <item android:id="@android:id/progress">
+        <clip>
+            <shape android:shape="rectangle">
+                <corners android:radius="2dp" />
+                <gradient
+                    android:startColor="#E8642C"
+                    android:endColor="#F2993D"
+                    android:type="linear" />
+            </shape>
+        </clip>
+    </item>
+</layer-list>

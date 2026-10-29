@@ -90,6 +90,7 @@ fun UnfoldedMusicHub(
     actions: ShelfActions,
     onPlayQueue: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    showNowPlayingCard: Boolean = true,
 ) {
     var activeTab by rememberSaveable { mutableStateOf(0) } // 0 = Library, 1 = Queue
     val accent = DeckColors.sourceAccent(ui.source)
@@ -203,79 +204,81 @@ fun UnfoldedMusicHub(
             }
         }
 
-        // 4. Bottom Now Playing & Liner Notes Card
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .background(Color(0xFF141619))
-                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(14.dp))
-                .padding(10.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // Album art square
-            Box(
+        // 4. Bottom Now Playing & Liner Notes Card (hidden in Flex mode to avoid doubleup)
+        if (showNowPlayingCard) {
+            Row(
                 Modifier
-                    .size(64.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Brush.linearGradient(listOf(ui.label.stripe, ui.label.stripe2))),
-                contentAlignment = Alignment.Center,
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0xFF141619))
+                    .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(14.dp))
+                    .padding(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                ui.artwork?.let {
-                    Image(it, "Album art", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                } ?: Text("♪", style = TextStyle(fontSize = 26.sp, color = Color.White.copy(alpha = 0.75f)))
-            }
+                // Album art square
+                Box(
+                    Modifier
+                        .size(64.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Brush.linearGradient(listOf(ui.label.stripe, ui.label.stripe2))),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    ui.artwork?.let {
+                        Image(it, "Album art", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                    } ?: Text("♪", style = TextStyle(fontSize = 26.sp, color = Color.White.copy(alpha = 0.75f)))
+                }
 
-            // Title, artist, duration and seek progress
-            Column(Modifier.weight(1f)) {
-                Text(
-                    ui.title.ifBlank { "No tape playing" },
-                    style = Title.copy(fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                val byLine = listOf(ui.artist, ui.album).filter { it.isNotBlank() }.joinToString(" · ")
-                if (byLine.isNotBlank()) {
+                // Title, artist, duration and seek progress
+                Column(Modifier.weight(1f)) {
                     Text(
-                        byLine,
-                        style = Sub.copy(fontSize = 11.5.sp),
+                        ui.title.ifBlank { "No tape playing" },
+                        style = Title.copy(fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                }
-                Spacer(Modifier.height(5.dp))
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(
-                        "${formatTime(ui.positionMs)} / ${formatTime(ui.durationMs)}",
-                        style = Sub.copy(fontSize = 10.sp),
-                    )
-                    Text(
-                        buildString {
-                            append(ui.source.label)
-                            if (ui.dbbEnabled) append(" · DBB")
-                            if (ui.avlsEnabled) append(" · AVLS")
-                        },
-                        style = Sub.copy(fontSize = 9.5.sp, color = accent),
-                    )
-                }
-                Spacer(Modifier.height(3.dp))
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(3.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(Color.White.copy(alpha = 0.12f)),
-                ) {
+                    val byLine = listOf(ui.artist, ui.album).filter { it.isNotBlank() }.joinToString(" · ")
+                    if (byLine.isNotBlank()) {
+                        Text(
+                            byLine,
+                            style = Sub.copy(fontSize = 11.5.sp),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Spacer(Modifier.height(5.dp))
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            "${formatTime(ui.positionMs)} / ${formatTime(ui.durationMs)}",
+                            style = Sub.copy(fontSize = 10.sp),
+                        )
+                        Text(
+                            buildString {
+                                append(ui.source.label)
+                                if (ui.dbbEnabled) append(" · DBB")
+                                if (ui.avlsEnabled) append(" · AVLS")
+                            },
+                            style = Sub.copy(fontSize = 9.5.sp, color = accent),
+                        )
+                    }
+                    Spacer(Modifier.height(3.dp))
                     Box(
                         Modifier
-                            .fillMaxWidth(ui.progress)
-                            .fillMaxHeight()
-                            .background(accent),
-                    )
+                            .fillMaxWidth()
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(Color.White.copy(alpha = 0.12f)),
+                    ) {
+                        Box(
+                            Modifier
+                                .fillMaxWidth(ui.progress)
+                                .fillMaxHeight()
+                                .background(accent),
+                        )
+                    }
                 }
             }
         }

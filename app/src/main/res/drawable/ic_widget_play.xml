@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Play Triangle: ► -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M8,5.4c0,-0.48 0.52,-0.78 0.94,-0.54l11,6.6c0.42,0.25 0.42,0.83 0,1.08l-11,6.6c-0.42,0.24 -0.94,-0.06 -0.94,-0.54V5.4z" />
+</vector>

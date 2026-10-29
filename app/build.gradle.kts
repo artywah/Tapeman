@@ -19,8 +19,8 @@ val signingProps = Properties().apply {
 }
 
 // The app version; versionCode must go up by one with every release.
-val appVersionName = "0.2.2"
-val appVersionCode = 13
+val appVersionName = "0.3.0"
+val appVersionCode = 14
 
 base {
     archivesName = "Tapeman-$appVersionName"

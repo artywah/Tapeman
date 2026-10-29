@@ -63,6 +63,43 @@ Tapeman dynamically reads the device hinge and posture, adapting its interface s
 
 ---
 
+## Historic Cassette Archive & Shell Inspector
+
+Tapeman features an authentic collection of seven vintage cassettes faithfully rendered down to their molded shell plastics, screw hardware, magnetic formulations, and spinning reel physics:
+
+| Shell | Year | Formulation | Characteristics |
+| --- | --- | --- | --- |
+| **TDK SA-90** | 1986 | High Bias · 70µs EQ (Type II) | Iconic textured charcoal shell with gold silkscreen typography and high-resonance precision mechanism. |
+| **TDK MA-XG 90** | 1986 | Metal · 70µs EQ (Type IV) | The holy grail of cassette engineering: rigid 3-piece die-cast metal and ceramic frame with dual glass composite reel rings. |
+| **Maxell XLII-S 90** | 1988 | High Bias · 70µs EQ (Type II) | Audiophile tape featuring Pure Epitaxial formulation, high-resonance damping mechanism, and dual-surface molded shell. |
+| **Maxell UD II 90** | 1989 | High Bias · 70µs EQ (Type II) | Legendary high-bias cassette with distinctive wide oval viewing window and gold silkscreen lettering. |
+| **Sony UX-Pro 90** | 1986 | High Bias · 70µs EQ (Type II) | Audiophile master cassette with integrated high-density ceramic tape guide block for ultra-crisp highs. |
+| **Sony HF 90** | 1985 | Normal Bias · 120µs EQ (Type I) | Definitive vintage normal bias cassette featuring a crystal-clear wide window and classic red accent racing stripes. |
+| **TEAC Sound 52** | 1984 | Normal Bias · 120µs EQ (Type I) | Legendary open-reel cassette equipped with dual spun-aluminum 3-window flanges that rotate in real time with the tape. |
+
+### Interactive Shell Inspector
+- **How to Open:** Long-press the **`REC · SHELL`** button on the left titanium control rim, or tap the cassette in Tabletop (Flex mode).
+- **Uncropped Live Preview:** Displays the complete cassette shell in full 100:64 aspect ratio with active spinning reels, corner screws, write-protect tabs, and tape head bridge.
+- **Historic Specifications:** Inspect formulation details, bias EQ settings, and archival background notes.
+- **One-Tap Switcher:** Cycle through the archive or instantly load any cassette directly into the Walkman deck.
+
+---
+
+## Android Home Screen Widgets
+
+Control your music directly from your home screen with authentic analog styling:
+
+- **4×2 Walkman Studio Deck Widget:**
+  - A scaled recreation of the Sony Walkman WM-RX707 deck.
+  - Dynamically rendered live cassette shell reflecting your currently loaded tape and album artwork.
+  - Full playback transport: Play/Pause, Rewind, Fast-Forward, AMS Skip Previous/Next, and Stop.
+  - Mechanical tape counter, amber/green REC status LEDs, EX DBB indicator, and real-time track metadata.
+- **2×1 Compact Cassette Widget:**
+  - Minimalist horizontal cassette widget featuring the active cassette shell with embedded album art.
+  - Live track and artist info with one-touch play/pause transport.
+
+---
+
 ## Five ways to load a tape
 
 | | Source | How it works |
@@ -161,7 +198,9 @@ Key Source Modules:
 - [x] Direct Plex Media Server streaming with live library browsing and search
 - [x] In-app Spotify library browsing and playback control via OAuth 2.0 PKCE
 - [x] Real-time EX DBB (Dynamic Bass Boost) and AVLS audio processing
-- [x] Type IV Metal transparent cassette styling with custom labels and moving tape packs
+- [x] Authentic vintage cassette archive (TDK, Maxell, Sony, TEAC) with custom formulations and spinning reel physics
+- [x] Interactive Cassette Shell Inspector modal with uncropped live specs
+- [x] Android Home Screen widgets (4×2 Walkman Studio Deck & 2×1 Compact Cassette)
 - [x] Interactive Tabletop (Flex mode) layout for foldables
 - [ ] Background playback for in-app Apple Music
 - [ ] Auto-reverse Side B transition at playlist end

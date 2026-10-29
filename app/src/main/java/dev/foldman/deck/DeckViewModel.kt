@@ -79,12 +79,15 @@ data class DeckUi(
     val holdLocked: Boolean = false,
     val dbbEnabled: Boolean = false,
     val avlsEnabled: Boolean = false,
-    val transparentShell: Boolean = true,
+    val shell: CassetteShell = CassetteShell.TDK_MAXG,
     val reverseDir: Boolean = false,
     val apple: AppleUi = AppleUi(),
     val plex: PlexUi = PlexUi(),
     val spotify: SpotifyUi = SpotifyUi(),
 ) {
+    /** Backwards-compatibility alias for transparent shell styling. */
+    val transparentShell: Boolean get() = shell.isTransparent
+
     /** How far through the tape we are: the left reel empties into the right one as this grows. */
     val progress: Float get() = if (durationMs > 0) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
 }
@@ -452,9 +455,23 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         tick()
     }
 
-    fun setTransparentShell(on: Boolean) {
-        prefs.edit { putBoolean(KEY_TRANSPARENT_SHELL, on) }
+    fun cycleShell() {
+        val current = _ui.value.shell
+        val nextIndex = (current.ordinal + 1) % CassetteShell.entries.size
+        setShell(CassetteShell.entries[nextIndex])
+    }
+
+    fun setShell(shell: CassetteShell) {
+        prefs.edit {
+            putString(KEY_CASSETTE_SHELL, shell.id)
+            putBoolean(KEY_TRANSPARENT_SHELL, shell.isTransparent)
+        }
         tick()
+    }
+
+    fun setTransparentShell(on: Boolean) {
+        val shell = if (on) CassetteShell.TDK_MAXG else CassetteShell.TDK_SA
+        setShell(shell)
     }
 
     // endregion
@@ -1098,11 +1115,27 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             holdLocked = holdLocked,
             dbbEnabled = DspAudioProcessor.dbbEnabled,
             avlsEnabled = DspAudioProcessor.avlsEnabled,
-            transparentShell = prefs.getBoolean(KEY_TRANSPARENT_SHELL, true),
+            shell = CassetteShell.entries.find { it.id == prefs.getString(KEY_CASSETTE_SHELL, null) }
+                ?: if (prefs.getBoolean(KEY_TRANSPARENT_SHELL, true)) CassetteShell.TDK_MAXG else CassetteShell.TDK_SA,
             reverseDir = reverseDir,
             apple = apple.value,
             plex = plex.value,
             spotify = spotify.value,
+        )
+        dev.foldman.widget.TapeWidgetManager.notifyUiState(
+            context = getApplication(),
+            title = np.title,
+            artist = np.artist,
+            album = np.album,
+            isPlaying = state.isPlaying,
+            source = source.label,
+            artwork = np.artwork,
+            hasPrevious = state.hasPrevious,
+            hasNext = state.hasNext,
+            progress = _ui.value.progress,
+            positionMs = _ui.value.positionMs,
+            durationMs = _ui.value.durationMs,
+            shellId = _ui.value.shell.id,
         )
     }
 
@@ -1151,6 +1184,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         private const val KEY_DBB = "dbb_enabled"
         private const val KEY_AVLS = "avls_enabled"
         private const val KEY_TRANSPARENT_SHELL = "transparent_shell"
+        private const val KEY_CASSETTE_SHELL = "cassette_shell"
         private const val KEY_APPLE_DEV = "apple_developer_token"
         private const val KEY_APPLE_USER = "apple_music_user_token"
         private const val KEY_PLEX_URL = "plex_server_url"

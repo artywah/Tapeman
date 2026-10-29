@@ -5,6 +5,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!-- The streaming apps Foldman can drive through their media sessions. -->
@@ -86,5 +87,42 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+
+        <!-- 2x1 Cassette Widget -->
+        <receiver
+            android:name=".widget.CassetteWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_cassette_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_cassette_2x1_info" />
+        </receiver>
+
+        <!-- 4x2 Walkman Deck Widget -->
+        <receiver
+            android:name=".widget.DeckControlWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_deck_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_deck_4x2_info" />
+        </receiver>
+
+        <!-- Widget Transport Action Receiver -->
+        <receiver
+            android:name=".widget.WidgetActionReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="dev.foldman.action.PLAY_PAUSE" />
+                <action android:name="dev.foldman.action.PREV" />
+                <action android:name="dev.foldman.action.NEXT" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

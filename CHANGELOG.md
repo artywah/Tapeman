@@ -2,6 +2,38 @@
 
 All notable changes to Tapeman. Versions follow [semantic versioning](https://semver.org); downloads are on the [releases page](https://github.com/artywah/Tapeman/releases).
 
+## [0.3.0] — 2026-10-29
+
+### Added
+- **Android Home Screen Widgets:**
+  - **4×2 Walkman Studio Deck Widget:** High-fidelity reproduction of the Sony Walkman WM-RX707 deck for Android home screens. Features live vector/bitmap cassette rendering of the loaded shell, full playback controls (Play/Pause, Rewind, Fast-Forward, AMS Skip, Stop), mechanical tape counter, EX DBB indicator, REC status LEDs, and track metadata.
+  - **2×1 Compact Cassette Widget:** Compact horizontal cassette widget rendering the active tape shell with embedded album art and one-tap playback control.
+  - **Real-Time RemoteViews Bitmap Renderer (`CassetteBitmapRenderer`):** Custom canvas graphics pipeline rendering real-time cassette shells, hubs, tape packs, and album art directly into Android system widgets.
+- **Expanded Vintage Cassette Archive:**
+  - Added an authentic 7-tape historic cassette collection across Type I, Type II, and Type IV magnetic formulations:
+    - **TDK SA-90 (1986):** Iconic Type II High Bias tape in textured charcoal shell with gold silkscreen typography.
+    - **TDK MA-XG 90 (1986):** Legendary Type IV Metal tape with rigid 3-piece die-cast metal and ceramic frame and dual glass composite reel rings.
+    - **Maxell XLII-S 90 (1988):** High Bias 70µs tape featuring Pure Epitaxial formulation, dual-surface molded shell, and high-resonance damping mechanism.
+    - **Maxell UD II 90 (1989):** High Bias tape with iconic wide oval viewing window and gold silkscreen lettering.
+    - **Sony UX-Pro 90 (1986):** Audiophile Type II master tape featuring an integrated high-density ceramic tape guide block.
+    - **Sony HF 90 (1985):** Definitive Type I Normal Bias vintage cassette with crystal-clear wide window and red accent racing stripes.
+    - **TEAC Sound 52 (1984):** Legendary open-reel cassette equipped with dual spun-aluminum 3-window flanges, red leader clamp, and authentic reel typography.
+- **Interactive Cassette Shell Inspector:**
+  - Dedicated specifications and archive modal launched via long-press on the `REC · SHELL` button or by tapping the cassette in Tabletop (Flex mode).
+  - Uncropped full 100:64 aspect ratio preview displaying the complete cassette shell, screws, tabs, and tape bridge with real-time spinning reel physics.
+  - Archival notes, magnetic formulation specs, bias EQ ratings, and one-tap **"Load This Cassette Into Deck"** action.
+
+### Fixed
+- **Cassette Typography & Spindle Hole Clearance:**
+  - Adjusted label typography, logos, and album art placement across all 7 cassette shells to strictly respect spindle drive holes ($HUB_L = 28.75\text{ mm}$, $HUB_R = 71.25\text{ mm}$, $r = 5.8\text{ mm}$) and molded washer collars.
+  - Relocated Sony UX-Pro track title to the dark top header strip, Maxell XLII-S and UD II logos outside the 8.2mm collars, and TDK MA-XG badges to the bottom center bay and outer corners.
+- **Album Cover Art & Label Orientation:**
+  - Fixed an issue where the square album art image and label text appeared upside down on inverted cassette shells in the Walkman chamber.
+  - Automatically applies a 180° rotation transform to album art, Side A/B badges, and track metadata when loaded in the Walkman deck so all elements face right-side up.
+- **TEAC Sound 52 Reel Typography Alignment:**
+  - Unified the radial coordinate system between the 3 cutout slots and the 3 solid aluminum sectors.
+  - Silkscreen typography (`TEAC`, `SOUND 52`, `Bias/NORMAL EQ/120µs`) is now centered symmetrically at $0^\circ$, $120^\circ$, and $240^\circ$ inside the broad silver sectors, maintaining generous margins from the adjacent cutout windows.
+
 ## [0.2.2] — 2026-10-24
 
 ### Added

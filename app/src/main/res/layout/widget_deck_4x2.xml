@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_4x2_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:background="@drawable/bg_widget_deck"
+    android:paddingStart="13dp"
+    android:paddingEnd="15dp"
+    android:paddingTop="11dp"
+    android:paddingBottom="11dp"
+    android:gravity="center_vertical">
+
+    <!-- Left side: Cassette Bay with Recessed Well & Cassette Image -->
+    <FrameLayout
+        android:id="@+id/widget_cassette_container"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1.25"
+        android:layout_marginEnd="10dp"
+        android:background="@drawable/bg_widget_cassette_well"
+        android:padding="3dp">
+
+        <ImageView
+            android:id="@+id/widget_deck_cassette_image"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_gravity="center"
+            android:adjustViewBounds="true"
+            android:scaleType="fitCenter"
+            android:contentDescription="@string/widget_cassette_description" />
+    </FrameLayout>
+
+    <!-- Right side: Walkman Deck Controls & Branding -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1.0"
+        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:paddingTop="2dp"
+        android:paddingBottom="2dp"
+        android:paddingStart="2dp"
+        android:paddingEnd="2dp">
+
+        <!-- Walkman Silkscreen Header -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="3dp">
+
+            <TextView
+                android:id="@+id/widget_deck_brand"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="SONY · WM-RX707"
+                android:textColor="#8E929A"
+                android:textSize="9.5sp"
+                android:textStyle="bold"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <ImageView
+                android:id="@+id/widget_status_led"
+                android:layout_width="9dp"
+                android:layout_height="9dp"
+                android:src="@drawable/ic_widget_led_green"
+                android:contentDescription="Status LED" />
+        </LinearLayout>
+
+        <!-- Track & Artist Info -->
+        <TextView
+            android:id="@+id/widget_deck_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Tapeman"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:lineSpacingExtra="1.5dp" />
+
+        <TextView
+            android:id="@+id/widget_deck_artist"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Walkman Stereo Deck"
+            android:textColor="#9DA1A9"
+            android:textSize="11.5sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:layout_marginTop="1dp"
+            android:layout_marginBottom="4dp" />
+
+        <!-- Hi-Fi Feature Badges & Mechanical Tape Counter -->
+        <LinearLayout
+            android:id="@+id/widget_deck_specs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="1dp"
+            android:layout_marginBottom="5dp">
+
+            <!-- Mechanical 3-digit Tape Counter -->
+            <TextView
+                android:id="@+id/widget_deck_counter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_widget_counter"
+                android:paddingStart="5dp"
+                android:paddingEnd="5dp"
+                android:paddingTop="1dp"
+                android:paddingBottom="1dp"
+                android:text="0 0 0"
+                android:textColor="#D8DCE4"
+                android:textSize="9.5sp"
+                android:fontFamily="monospace"
+                android:textStyle="bold" />
+
+            <!-- Flexible spacer -->
+            <FrameLayout
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <!-- Authentic Walkman Engraved Spec Badges -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_widget_badge"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:paddingTop="1dp"
+                android:paddingBottom="1dp"
+                android:text="EX DBB"
+                android:textColor="#E8642C"
+                android:textSize="8sp"
+                android:textStyle="bold"
+                android:layout_marginEnd="4dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_widget_badge"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:paddingTop="1dp"
+                android:paddingBottom="1dp"
+                android:text="AUTO REV"
+                android:textColor="#828896"
+                android:textSize="8sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Track Progress Bar & Timestamps -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="1dp"
+            android:layout_marginBottom="4dp">
+
+            <ProgressBar
+                android:id="@+id/widget_progress_bar"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="4dp"
+                android:max="1000"
+                android:progress="350"
+                android:progressDrawable="@drawable/bg_widget_progress" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="2dp">
+
+                <TextView
+                    android:id="@+id/widget_time_current"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="0:00"
+                    android:textColor="#787E8C"
+                    android:textSize="8.5sp"
+                    android:fontFamily="sans-serif-medium" />
+
+                <TextView
+                    android:id="@+id/widget_time_total"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="--:--"
+                    android:textColor="#787E8C"
+                    android:textSize="8.5sp"
+                    android:fontFamily="sans-serif-medium" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Vertical flexible spacer -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <!-- Physical Spun-Metal Transport Buttons Bar -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginTop="1dp">
+
+            <!-- PREV Button -->
+            <ImageButton
+                android:id="@+id/widget_btn_prev"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="@drawable/bg_widget_button"
+                android:src="@drawable/ic_widget_prev"
+                android:contentDescription="Previous Track"
+                android:scaleType="centerInside" />
+
+            <!-- PLAY/PAUSE Button (Prominent) -->
+            <ImageButton
+                android:id="@+id/widget_btn_play_pause"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_widget_button_accent"
+                android:src="@drawable/ic_widget_play"
+                android:contentDescription="Play or Pause"
+                android:scaleType="centerInside" />
+
+            <!-- NEXT Button -->
+            <ImageButton
+                android:id="@+id/widget_btn_next"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="@drawable/bg_widget_button"
+                android:src="@drawable/ic_widget_next"
+                android:contentDescription="Next Track"
+                android:scaleType="centerInside" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+</LinearLayout>

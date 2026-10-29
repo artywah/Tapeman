@@ -26,6 +26,56 @@ enum class Source(val label: String, val packageName: String?) {
  */
 enum class Transport { STOPPED, PLAYING, PAUSED, REWINDING, FAST_FORWARDING }
 
+/**
+ * Authentic vintage Compact Cassette shells inspired by the tapedeck.org archive.
+ */
+enum class CassetteShell(
+    val id: String,
+    val displayName: String,
+    val brand: String,
+    val year: String,
+    val tapeType: String,
+    val isTransparent: Boolean,
+    val formulation: String,
+    val description: String,
+) {
+    TDK_SA(
+        "tdk_sa", "TDK SA-90", "TDK", "1986", "HIGH (TYPE II) · 70µs", false,
+        "Super Avilyn (Cobalt-doped Fe2O3)",
+        "The undisputed benchmark of Type II High Bias cassettes. Celebrated for high dynamic range, silky top end, and heavy resonance-damping charcoal housing.",
+    ),
+    TDK_MAXG(
+        "tdk_maxg", "TDK MA-XG 90", "TDK", "1986", "METAL (TYPE IV) · 70µs", true,
+        "Finavinx Metal Alloy",
+        "The holy grail of cassette engineering: a rigid 3-piece die-cast metal and ceramic frame that virtually eliminates wow and flutter. Features white composite dual-ring reels and red leader clamp.",
+    ),
+    MAXELL_XLIIS(
+        "maxell_xliis", "Maxell XLII-S", "Maxell", "1988", "HIGH (TYPE II) · 70µs", false,
+        "Pure Epitaxial Magnetic Particles",
+        "Maxell's definitive audiophile cassette featuring the Super Silent-Phase Accuracy Cassette Mechanism, faceted spool wells, and central optical alignment reticle.",
+    ),
+    MAXELL_UDII(
+        "maxell_udii", "Maxell UD II", "Maxell", "1990", "HIGH (TYPE II) · 70µs", false,
+        "High-Energy Epitaxial",
+        "Maxell's iconic 1990 design featuring the High Resonance Damping Cassette Mechanism with signature ultra-wide curved oval viewing window across the spools.",
+    ),
+    SONY_UXPRO(
+        "sony_uxpro", "Sony UX-Pro", "Sony", "1986", "HIGH (TYPE II) · 70µs", true,
+        "Super Uniaxial High Bias",
+        "Sony's audiophile master cassette featuring an integrated ceramic tape guide block that keeps the tape perfectly aligned against Walkman heads for ultra-crisp highs.",
+    ),
+    SONY_HF(
+        "sony_hf", "Sony HF 90", "Sony", "1985", "NORMAL (TYPE I) · 120µs", false,
+        "High Fidelity Gamma-Hematite",
+        "The quintessential Walkman companion from the mid-80s, recognizable worldwide by its warm-grey shell and bold orange & red racing stripes.",
+    ),
+    TEAC_SOUND52(
+        "teac_sound52", "TEAC Sound 52", "TEAC", "1984", "NORMAL (TYPE I) · 120µs", true,
+        "High-Density Normal Bias · 120µs EQ",
+        "Legendary open-reel cassette equipped with dual spun-aluminum 3-window flanges that rotate in real time, mimicking a studio master reel-to-reel deck.",
+    ),
+}
+
 sealed interface SourceStatus {
     data object Ready : SourceStatus
     data object NeedsFolder : SourceStatus

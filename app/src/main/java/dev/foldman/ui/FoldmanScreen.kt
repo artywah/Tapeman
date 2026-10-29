@@ -113,6 +113,7 @@ fun FoldmanScreen(
     val scope = rememberCoroutineScope()
     var shelfOpen by rememberSaveable { mutableStateOf(false) }
     var cassetteDoorOpen by rememberSaveable { mutableStateOf(false) }
+    var shellInspectorOpen by rememberSaveable { mutableStateOf(false) }
     val feel by rememberUpdatedState(ui)
 
     // A new tape drops into the deck whenever the source changes (and when the app opens).
@@ -243,6 +244,7 @@ fun FoldmanScreen(
                     onToggleDoor = { shelfOpen = true },
                     onCloseDoor = {},
                     modifier = Modifier.fillMaxSize(),
+                    onOpenInspector = { shellInspectorOpen = true },
                 )
                 Posture.Unfolded -> Row(
                     Modifier
@@ -278,6 +280,7 @@ fun FoldmanScreen(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight(),
+                        onOpenInspector = { shellInspectorOpen = true },
                     )
                 }
                 Posture.Tabletop -> {
@@ -306,18 +309,37 @@ fun FoldmanScreen(
                                 .fillMaxWidth()
                                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
                                 .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 8.dp),
+                            onOpenInspector = { shellInspectorOpen = true },
                         )
                         Spacer(Modifier.height(gap))
-                        UnfoldedMusicHub(
-                            ui = ui,
-                            actions = shelfActions,
-                            onPlayQueue = vm::playQueueItem,
+                        Row(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxWidth()
                                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
                                 .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 12.dp),
-                        )
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            UnfoldedMusicHub(
+                                ui = ui,
+                                actions = shelfActions,
+                                onPlayQueue = vm::playQueueItem,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight(),
+                                showNowPlayingCard = false,
+                            )
+                            FlexTabletopJCardPanel(
+                                ui = ui,
+                                onCycleShell = vm::cycleShell,
+                                onSelectShell = vm::setShell,
+                                onPlayQueue = vm::playQueueItem,
+                                onOpenInspector = { shellInspectorOpen = true },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight(),
+                            )
+                        }
                     }
                 }
             }
@@ -333,6 +355,15 @@ fun FoldmanScreen(
                         Modifier.fillMaxWidth().height(sheetHeight),
                     )
                 }
+            }
+            if (shellInspectorOpen) {
+                CassetteShellInspectorDialog(
+                    currentShell = ui.shell,
+                    ui = ui,
+                    anim = anim,
+                    onSelectShell = vm::setShell,
+                    onDismiss = { shellInspectorOpen = false },
+                )
             }
 
             AnimatedVisibility(
@@ -416,6 +447,7 @@ private fun WalkmanPlayerUnit(
     onToggleDoor: () -> Unit,
     onCloseDoor: () -> Unit,
     modifier: Modifier,
+    onOpenInspector: () -> Unit = {},
 ) {
     BoxWithConstraints(modifier) {
         val isPortraitWindow = maxHeight > maxWidth
@@ -471,8 +503,11 @@ private fun WalkmanPlayerUnit(
                 )
 
                 Rx707RecButton(
-                    active = ui.transparentShell,
-                    onClick = { vm.setTransparentShell(!ui.transparentShell) },
+                    active = ui.shell.isTransparent,
+                    onClick = vm::cycleShell,
+                    caption = "REC · SHELL",
+                    subLabel = ui.shell.brand,
+                    onLongClick = onOpenInspector,
                 )
             }
 
@@ -945,6 +980,7 @@ private fun DeckBand(
     vm: DeckViewModel,
     onTapes: () -> Unit,
     modifier: Modifier,
+    onOpenInspector: () -> Unit = {},
 ) {
     Row(modifier.paintedBody(DeckColors.Body, corner = 22.dp, tactileDots = true)) {
         Column(Modifier.weight(0.73f).fillMaxHeight().padding(horizontal = 18.dp, vertical = 12.dp)) {
@@ -996,8 +1032,11 @@ private fun DeckBand(
                 verticalArrangement = Arrangement.SpaceBetween,
             ) {
                 Rx707RecButton(
-                    active = ui.transparentShell,
-                    onClick = { vm.setTransparentShell(!ui.transparentShell) },
+                    active = ui.shell.isTransparent,
+                    onClick = vm::cycleShell,
+                    caption = "REC · SHELL",
+                    subLabel = ui.shell.brand,
+                    onLongClick = onOpenInspector,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     SlideSwitch(ui.dbbEnabled, vm::setDbbEnabled, "EX DBB", height = 46.dp)

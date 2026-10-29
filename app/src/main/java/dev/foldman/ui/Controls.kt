@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -469,8 +470,16 @@ fun Rx707OpenLatch(onClick: () -> Unit, modifier: Modifier = Modifier, label: St
  * WM-RX707 top-edge recessed red circular REC button and ribbed guard plate (from top_controls.jpg).
  */
 @Composable
-fun Rx707RecButton(active: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun Rx707RecButton(
+    active: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    caption: String = "REC · SHELL",
+    subLabel: String? = null,
+    onLongClick: (() -> Unit)? = null,
+) {
     val action by rememberUpdatedState(onClick)
+    val longAction by rememberUpdatedState(onLongClick)
     val view = LocalView.current
     val haptics = LocalHaptics.current
     val sounds = LocalMechSounds.current
@@ -478,19 +487,33 @@ fun Rx707RecButton(active: Boolean, onClick: () -> Unit, modifier: Modifier = Mo
     val depth by animateFloatAsState(if (down) 1f else 0f, spring(stiffness = 2600f), label = "recBtn")
 
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(caption, style = EngravedCaps.copy(fontSize = 6.5.sp, letterSpacing = 0.8.sp, color = Color(0xFF2D3035)))
+        Spacer(Modifier.height(2.dp))
         Canvas(
             Modifier
                 .size(56.dp, 30.dp)
-                .semantics { role = Role.Button; contentDescription = "Record / Transparent Shell Toggle" }
+                .semantics { role = Role.Button; contentDescription = "Record / Shell Toggle ($caption ${subLabel ?: ""})" }
                 .pointerInput(Unit) {
-                    detectTapGestures(onPress = {
-                        down = true
-                        if (haptics) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_PRESS)
-                        sounds?.keyDown()
-                        action()
-                        tryAwaitRelease()
-                        down = false
-                    })
+                    detectTapGestures(
+                        onPress = {
+                            down = true
+                            if (haptics) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_PRESS)
+                            sounds?.keyDown()
+                            tryAwaitRelease()
+                            down = false
+                        },
+                        onTap = {
+                            action()
+                        },
+                        onLongPress = {
+                            if (longAction != null) {
+                                if (haptics) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                longAction?.invoke()
+                            } else {
+                                action()
+                            }
+                        },
+                    )
                 }
         ) {
             val r = CornerRadius(6.dp.toPx())
@@ -529,8 +552,17 @@ fun Rx707RecButton(active: Boolean, onClick: () -> Unit, modifier: Modifier = Mo
             )
             drawCircle(Color.White.copy(alpha = 0.35f), btnR * 0.3f, btnCenter - Offset(btnR * 0.25f, btnR * 0.25f))
         }
-        Spacer(Modifier.height(2.dp))
-        Text("REC · SHELL", style = EngravedCaps.copy(fontSize = 6.5.sp, letterSpacing = 1.sp, color = Color(0xFF2D3035)))
+        if (!subLabel.isNullOrBlank()) {
+            Spacer(Modifier.height(2.dp))
+            Text(
+                subLabel,
+                style = EngravedCaps.copy(fontSize = 7.sp, letterSpacing = 0.8.sp, color = Color(0xFFC42714), fontWeight = FontWeight.Bold),
+                modifier = Modifier.clickable {
+                    if (haptics) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    if (longAction != null) longAction?.invoke() else action()
+                },
+            )
+        }
     }
 }
 
