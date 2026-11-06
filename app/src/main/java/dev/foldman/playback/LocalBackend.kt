@@ -126,18 +126,36 @@ class LocalBackend(
         publish()
     }
 
-    private fun toMediaItem(t: LocalTrack) = MediaItem.Builder()
-        .setMediaId(t.uri.toString())
-        .setUri(t.uri)
-        .setMediaMetadata(
-            MediaMetadata.Builder()
-                .setTitle(t.title)
-                .setArtist(t.artist)
-                .setArtworkUri(t.coverUri)
-                .setAlbumTitle(t.folder)
-                .build(),
-        )
-        .build()
+    fun appendTracks(newTracks: List<LocalTrack>) {
+        if (newTracks.isEmpty()) return
+        withController { c ->
+            tracks = tracks + newTracks
+            val items = newTracks.map(::toMediaItem)
+            c.addMediaItems(items)
+            publish()
+        }
+    }
+
+    private fun toMediaItem(t: LocalTrack): MediaItem {
+        val extras = android.os.Bundle().apply {
+            t.ratingKey?.let { putString("plex_rating_key", it) }
+            putBoolean("is_favorite", t.isFavorite)
+        }
+        return MediaItem.Builder()
+            .setMediaId(t.uri.toString())
+            .setUri(t.uri)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(t.title)
+                    .setArtist(t.artist)
+                    .setArtworkUri(t.coverUri)
+                    .setAlbumTitle(t.folder)
+                    .setUserRating(androidx.media3.common.HeartRating(t.isFavorite))
+                    .setExtras(extras)
+                    .build(),
+            )
+            .build()
+    }
 
     private fun publish() {
         val c = controller

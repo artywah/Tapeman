@@ -52,12 +52,24 @@
             </intent-filter>
         </activity>
 
+        <!-- Android Auto / Automotive media service descriptor -->
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
+        <meta-data
+            android:name="com.google.android.gms.car.notification.SmallIcon"
+            android:resource="@drawable/tapeman_icon_monochrome" />
+
         <service
             android:name=".playback.PlaybackService"
             android:exported="true"
+            android:label="@string/app_name"
+            android:icon="@mipmap/ic_launcher"
             android:foregroundServiceType="mediaPlayback">
             <intent-filter>
+                <action android:name="androidx.media3.session.MediaLibraryService" />
                 <action android:name="androidx.media3.session.MediaSessionService" />
+                <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>
         </service>
 

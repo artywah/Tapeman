@@ -166,6 +166,12 @@ fun FoldmanScreen(
                 vm.playPlexAlbum(album, idx)
                 shelfOpen = false
             },
+            playRadio = { ratingKey, title ->
+                vm.playPlexRadio(ratingKey, title)
+                shelfOpen = false
+            },
+            toggleFavorite = vm::toggleTrackFavorite,
+            toggleSonicDj = vm::toggleSonicDj,
             toggleSettings = vm::togglePlexSettings,
             saveSettings = vm::savePlexSettings,
         )
@@ -200,6 +206,14 @@ fun FoldmanScreen(
             openAccess = vm::openAccessSettings,
             openApp = vm::openSourceApp,
             installApp = onInstallApp,
+            toggleCurrentFavorite = vm::toggleCurrentTrackFavorite,
+            playCurrentRadio = {
+                val currentTrack = vm.currentPlexTrack()
+                currentTrack?.ratingKey?.let { rk ->
+                    vm.playPlexRadio(rk, "${currentTrack.title} Radio")
+                    shelfOpen = false
+                }
+            },
             apple = appleActions,
             plex = plexActions,
             spotify = spotifyActions,

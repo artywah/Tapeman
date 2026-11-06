@@ -231,12 +231,39 @@ fun UnfoldedMusicHub(
 
                 // Title, artist, duration and seek progress
                 Column(Modifier.weight(1f)) {
-                    Text(
-                        ui.title.ifBlank { "No tape playing" },
-                        style = Title.copy(fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            ui.title.ifBlank { "No tape playing" },
+                            style = Title.copy(fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        if (ui.source == Source.PLEX && ui.title.isNotBlank()) {
+                            Spacer(Modifier.width(6.dp))
+                            val isFav = ui.isCurrentFavorite
+                            Text(
+                                if (isFav) "★" else "☆",
+                                style = TextStyle(
+                                    color = if (isFav) Color(0xFFFFB800) else Color(0xFF9DA2AA),
+                                    fontSize = 16.sp,
+                                ),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .clickable { actions.toggleCurrentFavorite() }
+                                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                "📻",
+                                style = TextStyle(fontSize = 13.sp),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .clickable { actions.playCurrentRadio() }
+                                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                            )
+                        }
+                    }
                     val byLine = listOf(ui.artist, ui.album).filter { it.isNotBlank() }.joinToString(" · ")
                     if (byLine.isNotBlank()) {
                         Text(

@@ -5,6 +5,7 @@ import android.net.Uri
 import dev.foldman.plex.PlexAlbum
 import dev.foldman.plex.PlexArtist
 import dev.foldman.plex.PlexClient
+import dev.foldman.plex.PlexHomeData
 import dev.foldman.plex.PlexSectionTab
 import dev.foldman.spotify.SpotifyCollection
 import dev.foldman.spotify.SpotifyTab
@@ -109,7 +110,7 @@ data class PlexUi(
     val serverUrl: String = PlexClient.DEFAULT_URL,
     val token: String = PlexClient.DEFAULT_TOKEN,
     val libraryName: String = PlexClient.DEFAULT_LIBRARY,
-    val tab: PlexSectionTab = PlexSectionTab.ALL,
+    val tab: PlexSectionTab = PlexSectionTab.HOME,
     val searchQuery: String = "",
     val selectedLetter: String? = null,
     val items: List<PlexAlbum> = emptyList(),
@@ -119,6 +120,9 @@ data class PlexUi(
     val openAlbum: PlexAlbum? = null,
     val tracks: List<LocalTrack> = emptyList(),
     val loadedAlbumTitle: String? = null,
+    val homeData: PlexHomeData? = null,
+    val loadingHome: Boolean = false,
+    val isSonicDjActive: Boolean = false,
     val loading: Boolean = false,
     val loadingMore: Boolean = false,
     val canLoadMore: Boolean = true,
@@ -145,6 +149,8 @@ data class LocalTrack(
     val artist: String?,
     val folder: String,
     val coverUri: Uri?,
+    val ratingKey: String? = null,
+    val isFavorite: Boolean = false,
 )
 
 /** A song in the play queue: a local file (id = index), a Plex track, or another app's queue item. */

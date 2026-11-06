@@ -1,0 +1,27 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="256dp"
+    android:height="256dp"
+    android:viewportWidth="256"
+    android:viewportHeight="256">
+    <!-- Dark Metallic Background -->
+    <path
+        android:pathData="M16,0 H240 A16,16 0 0,1 256,16 V240 A16,16 0 0,1 240,256 H16 A16,16 0 0,1 0,240 V16 A16,16 0 0,1 16,0 Z"
+        android:fillColor="#1A1815" />
+
+    <!-- Outer Golden Accent Frame -->
+    <path
+        android:pathData="M32,32 H224 V224 H32 Z"
+        android:strokeColor="#FFC107"
+        android:strokeWidth="3"
+        android:strokeAlpha="0.3" />
+
+    <!-- Large Glowing Golden Star -->
+    <path
+        android:pathData="M128,52 L148,104 L204,107 L160,143 L174,198 L128,168 L82,198 L96,143 L52,107 L108,104 Z"
+        android:fillColor="#FFC107" />
+
+    <!-- Center Heart Accent -->
+    <path
+        android:pathData="M128,142 C126,140 106,122 106,108 C106,98 114,90 124,90 C126,90 128,91 128,92 C128,91 130,90 132,90 C142,90 150,98 150,108 C150,122 130,140 128,142 Z"
+        android:fillColor="#E65100" />
+</vector>

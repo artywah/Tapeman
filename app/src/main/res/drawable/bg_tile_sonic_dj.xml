@@ -1,0 +1,33 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="256dp"
+    android:height="256dp"
+    android:viewportWidth="256"
+    android:viewportHeight="256">
+    <!-- Dark Background with Subtle Border -->
+    <path
+        android:pathData="M16,0 H240 A16,16 0 0,1 256,16 V240 A16,16 0 0,1 240,256 H16 A16,16 0 0,1 0,240 V16 A16,16 0 0,1 16,0 Z"
+        android:fillColor="#15171C" />
+
+    <!-- Sonic Wave Bars (Cyan / Teal) -->
+    <path
+        android:pathData="M60,110 v36 M80,96 v64 M100,80 v96 M120,68 v120 M136,68 v120 M156,80 v96 M176,96 v64 M196,110 v36"
+        android:strokeColor="#00E5FF"
+        android:strokeWidth="8"
+        android:strokeLineCap="round" />
+
+    <!-- Headphone Arc (Orange / Gold Accent) -->
+    <path
+        android:pathData="M70,140 C70,95 96,65 128,65 C160,65 186,95 186,140"
+        android:strokeColor="#FFB300"
+        android:strokeWidth="10"
+        android:strokeLineCap="round" />
+
+    <!-- Headphone Earcups -->
+    <path
+        android:pathData="M58,135 H76 A6,6 0 0,1 82,141 V175 A6,6 0 0,1 76,181 H58 A6,6 0 0,1 52,175 V141 A6,6 0 0,1 58,135 Z"
+        android:fillColor="#FFB300" />
+    <path
+        android:pathData="M180,135 H198 A6,6 0 0,1 204,141 V175 A6,6 0 0,1 198,181 H180 A6,6 0 0,1 174,175 V141 A6,6 0 0,1 180,135 Z"
+        android:fillColor="#FFB300" />
+</vector>

@@ -2,6 +2,58 @@
 
 All notable changes to Tapeman. Versions follow [semantic versioning](https://semver.org); downloads are on the [releases page](https://github.com/artywah/Tapeman/releases).
 
+## [0.4.0] — 2026-11-06
+
+### Added
+- **Personalized "Home" Discovery Experience (Mobile & Android Auto):**
+  - **Dynamic Plex Server Hubs Integration (`/hubs/sections/`):** Connects to Plex Media Server's recommendation engine to build automated, personalized shelves (*"More by [Recent Artist]"*, *"More in [Recent Genre]"*, *"Most Played in [Month]"*, and *"More from [Record Label]"*).
+  - **"Fans Also Like / Similar Artists" Engine (`/library/metadata/{id}/similar`):** Dynamically discovers similar artists from your Plex library based on recent listening history, each complete with photo avatars and 1-tap **"📻 Radio"** launch buttons.
+  - **Mobile "Home" Tab & Crate Digger Feed:**
+    - Permanent **`HOME`** pill pinned as the first tab in the Plex Library panel on foldables and tablets.
+    - **The DJ Booth (Hero Deck):** Live interactive **Sonic DJ** toggle card (cyan audio waveforms, on/off state) and quick access to **Loved Tracks**.
+    - **"Jump Back In" Shelf:** Horizontal cassette tape rack of recently played albums (`lastViewedAt:desc`) with instant 1-tap load into the Walkman deck.
+    - **Acoustic Similar Artists Shelf:** Circular artist avatars with instant radio launch.
+    - **Plex Hub Shelves:** Horizontal scrolling album shelves.
+  - **Android Auto "Home" Tab & 4-Across Layout:**
+    - Added **`Home`** as the premier tab in the in-car navigation bar (`Home`, `Playlists`, `Albums`, `More`).
+    - Organizes content into glanceable shelves using Content Style headers (`CONTENT_STYLE_GROUP_TITLE_HINT`), suppressing the A–Z scrubber to automatically expand into a **4-cards-across grid**:
+      - **"DJ & Favorites":** `🎧 Sonic DJ: ON/OFF` toggle with live state, plus `★ Loved Tracks`.
+      - **"Recommended Stations":** 1-tap `📻 [Recent Artist] Radio` and `📻 [Similar Artist] Radio`.
+      - **"Jump Back In":** 4 most recently played albums.
+      - **Dynamic Hubs:** Personalized shelves directly from Plex (*"More in Electronic"*, *"Most Played"*, etc.).
+    - Added playlist & album fallback vector artwork (`bg_tile_favorites`) to eliminate Android Auto warning triangle icons on items lacking cover art.
+- **Android Auto Smart Sub-Ranges for Massive Libraries:**
+  - **Automatic Sub-Range Bucketing:** Automatically partitions letters with large catalogs (> 40 items) into balanced ~35-item sub-ranges (e.g. `E-40 → Edith Frost`, `Ellen Allien → Elton John`). Eliminates Android Auto's ~50-item list cutoff and allows complete, uninterrupted browsing across massive libraries (7,600+ artists, 38,000+ albums).
+  - **IPC Binder Payload Optimization:** Replaced multi-page Wikipedia/biography text in car subtitles with clean `"Artist"` tags, shrinking the Binder transaction payload from 930 KB to 25 KB (97% reduction) and preventing silent IPC parcel truncation.
+  - **Letters with $\le 40$ Artists:** Display all artists directly in a clean list without extra sub-levels.
+  - **Full Catalog Continuous List:** Provided `★ All '[Letter]' Artists` continuous browse option at the bottom of each letter.
+  - **Smart Sub-Ranges for Albums:** Applied the same 35-item sub-range bucketing to the Albums tab for letters containing thousands of albums.
+- **In-Car Voice & Text Search (`onSearch`):**
+  - Implemented `MediaLibrarySession.Callback.onSearch` and `onGetSearchResult` for Android Auto. Drivers can now search for any artist or album using Google Assistant voice commands or the in-car search keyboard.
+- **Android Auto In-Car Media Support:**
+  - Upgraded background audio engine to AndroidX `MediaLibraryService` with standard automotive descriptor and intent filters.
+  * **Automotive Browse Hierarchy:**
+    * **Playlists & Mixes** *(Full-Bleed Square Grid)*: Displays a visual card grid with **"🎧 Sonic DJ: ON/OFF"** as the permanent first tile, followed by **"★ Loved Tracks"** and all user playlists.
+    * **Albums** *(Full-Bleed Square Grid)*: Discography view with square artwork cards and alphabetical sub-ranges.
+    * **Recent Additions** *(Full-Bleed Square Grid)*: Latest music added to your library rendered as square cover cards.
+    * **Artists** *(A–Z List)*: Clean vertical A–Z artist roster, smart sub-ranges, and discographies.
+    * **Local Audio** *(List)*: Direct browsing of the device's local audio folder.
+  * **Custom In-Car Transport Actions & First-Tile Controls:**
+    * **Sonic DJ Tile (`🎧`):** Always the first tile on the Playlists screen—tap directly from the car console to engage continuous DJ mode without leaving the playlist view.
+    * **Sonic DJ Transport Action (`🎧`):** Transport button on the Now Playing screen to toggle automated DJ Freeze mode.
+    * **Sonic Radio (`📻`):** Retro transistor radio action button on the Now Playing screen to instantly spin up a station based on the current track.
+    * **Favorite (`★`):** Toggles 5-star / "Loved" status in Plex for the currently playing track.
+  * **Sideloading Compatibility:** Fully compatible with [UnknownAuto](https://github.com/GitMag/UnknownAuto) (Shizuku-driven package origin attribution) and Android Auto's "Unknown sources" developer mode.
+- **Plex Favorites & Loved Tracks:**
+  - Dedicated **FAVORITES** section tab in the Plex library browser displaying a pinned `★ Loved Tracks` tape and all loved albums.
+  - Interactive **`★` / `☆`** favorite toggle on individual track rows and on the unfolded Now Playing liner-notes card with instant bidirectional sync to Plex Media Server (`/:/rate`).
+- **Dynamic Radio Stations:**
+  - **Artist Radio (`Artist Radio 📻`):** Dedicated button on every Artist discography page.
+  - **Track Radio (`📻`):** Dedicated radio button on the unfolded Now Playing bar to start a continuous station from the active song.
+  - **Multi-tier Station Resolution:** Queries Plex official Station endpoints, falls back to Plex Super Sonic acoustic neural-network nearest-neighbor vectors (`/nearest`), and gracefully falls back to shuffled artist tracks if sonic analysis is unavailable.
+- **Sonic DJ (DJ Freeze Mode):**
+  - Algorithmic playback monitor in `PlaybackService` that continuously monitors queue length and injects sonically matching tracks from your Plex library before playback ends.
+
 ## [0.3.0] — 2026-10-29
 
 ### Added

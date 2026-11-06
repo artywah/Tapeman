@@ -1,22 +1,27 @@
 package dev.foldman.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.OutlinedTextField
@@ -37,12 +42,14 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.foldman.deck.PlexUi
 import dev.foldman.plex.PlexAlbum
 import dev.foldman.plex.PlexArtist
+import dev.foldman.plex.PlexClient
 import dev.foldman.plex.PlexSectionTab
 
 class PlexActions(
@@ -56,6 +63,9 @@ class PlexActions(
     val openAlbum: (PlexAlbum) -> Unit,
     val closeAlbum: () -> Unit,
     val playAlbum: (PlexAlbum?, Int) -> Unit,
+    val playRadio: (ratingKey: String, title: String) -> Unit = { _, _ -> },
+    val toggleFavorite: (dev.foldman.deck.LocalTrack) -> Unit = {},
+    val toggleSonicDj: () -> Unit = {},
     val toggleSettings: (Boolean) -> Unit,
     val saveSettings: (String, String, String) -> Unit,
 )
@@ -181,6 +191,17 @@ fun PlexBrowser(
                                 Text(it, style = small, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
+                        t.ratingKey?.let {
+                            Text(
+                                if (t.isFavorite) "★" else "☆",
+                                style = small.copy(color = if (t.isFavorite) Color(0xFFFFB800) else ink.copy(alpha = 0.5f), fontSize = 16.sp),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .clickable { actions.toggleFavorite(t) }
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                            )
+                        }
+                        Spacer(Modifier.width(4.dp))
                         Text("▶", style = small.copy(color = accent))
                     }
                 }
@@ -189,6 +210,10 @@ fun PlexBrowser(
             val artist = plex.openArtist
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("‹ Artists", style = link, modifier = Modifier.clickable(onClick = actions.closeArtist).padding(vertical = 4.dp))
+                Spacer(Modifier.weight(1f))
+                PlexPill("Artist Radio 📻", accent) {
+                    actions.playRadio(artist.id, "${artist.name} Radio")
+                }
             }
             Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -285,6 +310,7 @@ fun PlexBrowser(
                         val placeholder = when (plex.tab) {
                             PlexSectionTab.ARTISTS -> "Search artists…"
                             PlexSectionTab.PLAYLISTS -> "Search playlists…"
+                            PlexSectionTab.FAVORITES -> "Search favorites…"
                             else -> "Search ${plex.libraryName}…"
                         }
                         Text(placeholder, style = small)
@@ -318,31 +344,44 @@ fun PlexBrowser(
             }
             Spacer(Modifier.height(4.dp))
 
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(3.dp),
-            ) {
-                Letters.forEach { l ->
-                    val sel = plex.selectedLetter == l
-                    Text(
-                        l,
-                        style = small.copy(
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (sel) Color(0xFF1A1510) else sub,
-                        ),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(if (sel) accent else Color.Transparent)
-                            .clickable { actions.setLetter(l) }
-                            .padding(horizontal = 5.dp, vertical = 2.dp),
-                    )
+            if (plex.tab != PlexSectionTab.HOME) {
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    Letters.forEach { l ->
+                        val sel = plex.selectedLetter == l
+                        Text(
+                            l,
+                            style = small.copy(
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (sel) Color(0xFF1A1510) else sub,
+                            ),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(if (sel) accent else Color.Transparent)
+                                .clickable { actions.setLetter(l) }
+                                .padding(horizontal = 5.dp, vertical = 2.dp),
+                        )
+                    }
                 }
+                Spacer(Modifier.height(6.dp))
             }
-            Spacer(Modifier.height(6.dp))
 
-            if (plex.loading) {
+            if (plex.loading && plex.items.isEmpty() && plex.artists.isEmpty() && plex.homeData == null) {
                 Text("Connecting to ${plex.serverUrl}…", style = small)
+            } else if (plex.tab == PlexSectionTab.HOME) {
+                PlexHomeView(
+                    plex = plex,
+                    actions = actions,
+                    accent = accent,
+                    ink = ink,
+                    sub = sub,
+                    titleStyle = titleStyle,
+                    small = small,
+                    link = link,
+                )
             } else if (plex.tab == PlexSectionTab.ARTISTS) {
                 if (plex.artists.isEmpty() && plex.message == null) {
                     Text("No artists found.", style = small)
@@ -457,4 +496,298 @@ private fun PlexPill(text: String, accent: Color, enabled: Boolean = true, onCli
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 6.dp),
     )
+}
+
+@Composable
+private fun PlexHomeView(
+    plex: PlexUi,
+    actions: PlexActions,
+    accent: Color,
+    ink: Color,
+    sub: Color,
+    titleStyle: TextStyle,
+    small: TextStyle,
+    link: TextStyle,
+) {
+    val home = plex.homeData
+    if (home == null && plex.loading) {
+        Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) {
+            Text("Digging into your Plex collection…", style = small)
+        }
+        return
+    }
+
+    LazyColumn(
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(bottom = 16.dp),
+    ) {
+        // 1. Hero DJ Booth (Quick Actions)
+        item(key = "home_dj_booth") {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                // Sonic DJ Card
+                val isDjActive = plex.isSonicDjActive
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (isDjActive) Color(0xFF003840) else ink.copy(alpha = 0.08f))
+                        .border(1.dp, if (isDjActive) Color(0xFF00E5FF) else ink.copy(alpha = 0.15f), RoundedCornerShape(10.dp))
+                        .clickable(onClick = actions.toggleSonicDj)
+                        .padding(10.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("🎧", style = TextStyle(fontSize = 14.sp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            if (isDjActive) "SONIC DJ: ON" else "SONIC DJ: OFF",
+                            style = small.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = if (isDjActive) Color(0xFF00E5FF) else ink,
+                                fontSize = 10.sp,
+                            ),
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        if (isDjActive) "Continuous Flow Active" else "Acoustic DJ · Tap to Start",
+                        style = small.copy(fontSize = 9.sp, color = if (isDjActive) Color(0xFF80F2FF) else sub),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+
+                // Loved Tracks Card
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFF241E15))
+                        .border(1.dp, accent.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                        .clickable {
+                            actions.openAlbum(
+                                PlexAlbum(
+                                    id = PlexClient.SPECIAL_FAVORITES_ID,
+                                    title = "★ Loved Tracks",
+                                    artist = "Plex Favorites",
+                                    isPlaylist = true,
+                                )
+                            )
+                        }
+                        .padding(10.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("★", style = TextStyle(fontSize = 14.sp, color = accent))
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "LOVED TRACKS",
+                            style = small.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = accent,
+                                fontSize = 10.sp,
+                            ),
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Your Favorited Songs",
+                        style = small.copy(fontSize = 9.sp, color = sub),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+
+        // 2. Jump Back In (Recently Played)
+        if (home?.recentlyPlayed?.isNotEmpty() == true) {
+            item(key = "home_recents") {
+                Column {
+                    HomeSectionHeader(title = "JUMP BACK IN", icon = "⚡", accent = accent, ink = ink)
+                    Spacer(Modifier.height(8.dp))
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        contentPadding = PaddingValues(horizontal = 2.dp),
+                    ) {
+                        items(home.recentlyPlayed, key = { "recent_${it.id}" }) { album ->
+                            HomeAlbumCard(
+                                album = album,
+                                onClick = { actions.openAlbum(album) },
+                                onPlay = { actions.playAlbum(album, 0) },
+                                ink = ink,
+                                sub = sub,
+                                accent = accent,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Similar to [Recent Artist]
+        if (home?.recentArtist != null && home.similarArtists.isNotEmpty()) {
+            item(key = "home_similar_artists") {
+                Column {
+                    HomeSectionHeader(
+                        title = "FANS ALSO LIKE (${home.recentArtist.name.uppercase()})",
+                        icon = "✨",
+                        accent = accent,
+                        ink = ink,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(horizontal = 2.dp),
+                    ) {
+                        items(home.similarArtists, key = { "sim_${it.id}" }) { artist ->
+                            HomeArtistAvatarCard(
+                                artist = artist,
+                                onOpen = { actions.openArtist(artist) },
+                                onRadio = { actions.playRadio(artist.id, artist.name) },
+                                ink = ink,
+                                sub = sub,
+                                accent = accent,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4. Dynamic Hubs
+        home?.hubs?.forEach { hub ->
+            item(key = "hub_${hub.hubIdentifier}") {
+                Column {
+                    HomeSectionHeader(title = hub.title.uppercase(), icon = "💿", accent = accent, ink = ink)
+                    Spacer(Modifier.height(8.dp))
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        contentPadding = PaddingValues(horizontal = 2.dp),
+                    ) {
+                        items(hub.items, key = { "hub_${hub.hubIdentifier}_${it.id}" }) { album ->
+                            HomeAlbumCard(
+                                album = album,
+                                onClick = { actions.openAlbum(album) },
+                                onPlay = { actions.playAlbum(album, 0) },
+                                ink = ink,
+                                sub = sub,
+                                accent = accent,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeSectionHeader(title: String, icon: String, accent: Color, ink: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(icon, style = TextStyle(fontSize = 11.sp, color = accent))
+        Spacer(Modifier.width(6.dp))
+        Text(
+            title,
+            style = TextStyle(
+                color = ink,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.8.sp,
+            ),
+        )
+    }
+}
+
+@Composable
+private fun HomeAlbumCard(
+    album: PlexAlbum,
+    onClick: () -> Unit,
+    onPlay: () -> Unit,
+    ink: Color,
+    sub: Color,
+    accent: Color,
+) {
+    Column(
+        Modifier
+            .width(100.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(bottom = 4.dp),
+    ) {
+        Box(Modifier.size(100.dp)) {
+            UrlThumb(album.coverUrl, Modifier.fillMaxSize().clip(RoundedCornerShape(8.dp)))
+            Box(
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(4.dp)
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xCC000000))
+                    .clickable(onClick = onPlay),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("▶", style = TextStyle(color = accent, fontSize = 10.sp))
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            album.title,
+            style = TextStyle(color = ink, fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            album.artist,
+            style = TextStyle(color = sub, fontSize = 10.sp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun HomeArtistAvatarCard(
+    artist: PlexArtist,
+    onOpen: () -> Unit,
+    onRadio: () -> Unit,
+    ink: Color,
+    sub: Color,
+    accent: Color,
+) {
+    Column(
+        Modifier
+            .width(86.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onOpen)
+            .padding(bottom = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        UrlThumb(
+            artist.thumbUrl,
+            Modifier
+                .size(64.dp)
+                .clip(CircleShape)
+                .border(1.dp, accent.copy(alpha = 0.4f), CircleShape),
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            artist.name,
+            style = TextStyle(color = ink, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.height(3.dp))
+        Row(
+            Modifier
+                .clip(RoundedCornerShape(50))
+                .background(accent.copy(alpha = 0.15f))
+                .clickable(onClick = onRadio)
+                .padding(horizontal = 6.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("📻 Radio", style = TextStyle(color = accent, fontSize = 9.sp, fontWeight = FontWeight.Bold))
+        }
+    }
 }

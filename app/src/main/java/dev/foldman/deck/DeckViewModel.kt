@@ -81,6 +81,7 @@ data class DeckUi(
     val avlsEnabled: Boolean = false,
     val shell: CassetteShell = CassetteShell.TDK_MAXG,
     val reverseDir: Boolean = false,
+    val isCurrentFavorite: Boolean = false,
     val apple: AppleUi = AppleUi(),
     val plex: PlexUi = PlexUi(),
     val spotify: SpotifyUi = SpotifyUi(),
@@ -501,6 +502,13 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         loadPlexItems()
     }
 
+    fun toggleSonicDj() {
+        val s = dev.foldman.playback.PlaybackService.instance
+        val next = s?.toggleSonicDj() ?: !plex.value.isSonicDjActive
+        plex.value = plex.value.copy(isSonicDjActive = next)
+        tick()
+    }
+
     fun setPlexTab(tab: PlexSectionTab) {
         if (plex.value.tab == tab && plex.value.openAlbum == null && plex.value.openArtist == null) return
         plex.value = plex.value.copy(
@@ -544,7 +552,24 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             plex.value = plex.value.copy(loading = true, message = null)
             tick()
             try {
-                if (state.tab == PlexSectionTab.ARTISTS) {
+                if (state.tab == PlexSectionTab.HOME) {
+                    val home = plexClient.fetchHomeData()
+                    plex.value = plex.value.copy(
+                        homeData = home,
+                        items = home.recentlyPlayed,
+                        loading = false,
+                        canLoadMore = false,
+                    )
+                    // Auto-queue first album on initial launch if nothing is loaded in Plex yet
+                    if (plexLoadedTracks.isEmpty() && home.recentlyPlayed.isNotEmpty()) {
+                        val firstAlbum = home.recentlyPlayed.first()
+                        runCatching { plexClient.fetchTracks(firstAlbum) }.getOrNull()?.takeIf { it.isNotEmpty() }?.let { firstTracks ->
+                            plexLoadedTracks = firstTracks
+                            plex.value = plex.value.copy(loadedAlbumTitle = firstAlbum.title)
+                            plexBackend.setTracks(firstTracks, startIndex = 0, loadIntoPlayer = source == Source.PLEX)
+                        }
+                    }
+                } else if (state.tab == PlexSectionTab.ARTISTS) {
                     val artists = plexClient.fetchArtists(
                         searchQuery = state.searchQuery,
                         letter = state.selectedLetter,
@@ -718,6 +743,71 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             playRequestedAt = SystemClock.elapsedRealtime()
             plexBackend.setTracks(albumTracks, startIndex = startIndex.coerceIn(albumTracks.indices), loadIntoPlayer = true)
             plexBackend.playTrack(startIndex.coerceIn(albumTracks.indices))
+            tick()
+        }
+    }
+
+    fun playPlexRadio(ratingKey: String, title: String = "Plex Radio") {
+        selectSource(Source.PLEX)
+        viewModelScope.launch {
+            plex.value = plex.value.copy(loading = true, message = null)
+            val stationTracks = runCatching { plexClient.fetchStationTracks(ratingKey) }.getOrElse { e ->
+                plex.value = plex.value.copy(loading = false, message = e.message ?: "Failed to start radio.")
+                tick()
+                return@launch
+            }
+            if (stationTracks.isEmpty()) {
+                plex.value = plex.value.copy(loading = false, message = "No tracks found for radio station.")
+                tick()
+                return@launch
+            }
+            plex.value = plex.value.copy(loading = false, loadedAlbumTitle = title)
+            plexLoadedTracks = stationTracks
+            if (winding != 0) finishWinding()
+            stopped = false
+            playRequestedAt = android.os.SystemClock.elapsedRealtime()
+            plexBackend.setTracks(stationTracks, startIndex = 0, loadIntoPlayer = true)
+            plexBackend.playTrack(0)
+            tick()
+        }
+    }
+
+    fun currentPlexTrack(): LocalTrack? {
+        val idx = backend.state.value.trackIndex
+        return if (source == Source.PLEX) plexLoadedTracks.getOrNull(idx) else null
+    }
+
+    fun toggleTrackFavorite(track: LocalTrack) {
+        val rk = track.ratingKey ?: return
+        val newFav = !track.isFavorite
+        viewModelScope.launch {
+            val updatedOpenTracks = plex.value.tracks.map {
+                if (it.ratingKey == rk) it.copy(isFavorite = newFav) else it
+            }
+            plex.value = plex.value.copy(tracks = updatedOpenTracks)
+            val updatedLoaded = plexLoadedTracks.map {
+                if (it.ratingKey == rk) it.copy(isFavorite = newFav) else it
+            }
+            plexLoadedTracks = updatedLoaded
+            plexClient.rateItem(rk, if (newFav) 10 else -1)
+            tick()
+        }
+    }
+
+    fun toggleCurrentTrackFavorite() {
+        if (source != Source.PLEX) return
+        val idx = backend.state.value.trackIndex
+        val currentTrack = plexLoadedTracks.getOrNull(idx) ?: return
+        val ratingKey = currentTrack.ratingKey ?: return
+        val newFav = !currentTrack.isFavorite
+        viewModelScope.launch {
+            val updated = currentTrack.copy(isFavorite = newFav)
+            val list = plexLoadedTracks.toMutableList()
+            if (idx in list.indices) {
+                list[idx] = updated
+                plexLoadedTracks = list
+            }
+            plexClient.rateItem(ratingKey, if (newFav) 10 else -1)
             tick()
         }
     }
@@ -1118,6 +1208,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             shell = CassetteShell.entries.find { it.id == prefs.getString(KEY_CASSETTE_SHELL, null) }
                 ?: if (prefs.getBoolean(KEY_TRANSPARENT_SHELL, true)) CassetteShell.TDK_MAXG else CassetteShell.TDK_SA,
             reverseDir = reverseDir,
+            isCurrentFavorite = if (source == Source.PLEX) plexLoadedTracks.getOrNull(state.trackIndex)?.isFavorite == true else false,
             apple = apple.value,
             plex = plex.value,
             spotify = spotify.value,

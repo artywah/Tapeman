@@ -104,7 +104,7 @@ Control your music directly from your home screen with authentic analog styling:
 
 | | Source | How it works |
 | --- | --- | --- |
-| 🟠 | **Plex Media Server** | Connect directly to your Plex Media Server (e.g. `https://plex.yourserver.com` + `X-Plex-Token`). Browse **Artists**, **Albums**, **Recent**, **Popular**, and **Playlists** with full discography drill-down, infinite scrolling, instant A–Z jump rails, and debounced live search. Streams directly through Tapeman's native Media3 audio engine with real-time **EX DBB dynamic bass boost**, **AVLS limiter**, continuous 12× REVIEW/CUE winding across tracks, and album art printed directly onto the cassette tape label. |
+| 🟠 | **Plex Media Server** | Connect directly to your Plex Media Server (e.g. `https://plex.yourserver.com` + `X-Plex-Token`). Browse **Artists**, **Albums**, **Recent**, **Popular**, **Playlists**, and **Favorites** with full discography drill-down, infinite scrolling, instant A–Z jump rails, and debounced live search. Features one-tap **Love / Favorite (`★`)** syncing, **Sonic Radio (`📻`)** station generation, and **Sonic DJ (DJ Freeze)** continuous mood playback. Streams directly through Tapeman's native Media3 audio engine with real-time **EX DBB dynamic bass boost**, **AVLS limiter**, continuous 12× REVIEW/CUE winding across tracks, and album art printed directly onto the cassette tape label. |
 | 🟢 | **Spotify** | Drive Spotify via media-session control out of the box, or sign in securely via **OAuth 2.0 PKCE** to browse your Spotify **Playlists** and **Saved Albums** directly inside Tapeman's Tape Shelf and Library Band. |
 | 🗂 | **Local folder** | Pick any folder on the phone. Plays FLAC, MP3, AAC, M4A, OGG, Opus, WAV and more via Media3 in the background with lock screen controls and system media notifications. Embedded art or `cover.jpg` / `folder.png` is stamped onto the cassette label. |
 | 🍎 | **Apple Music** | Sign in through Apple's MusicKit to browse library playlists inside Tapeman and stream them in-app via a crash-isolated player service. |
@@ -118,6 +118,31 @@ Tapeman incorporates authentic audio processing inspired by high-end portable ca
 - **EX DBB (Dynamic Bass Boost):** Dual-mode frequency equalization providing rich low-end resonance and analog tape warmth.
 - **AVLS (Automatic Volume Limiter System):** Dynamic range compression that prevents harsh peaks and protects listening levels without distorting transients.
 - **Physical Volume Faders:** Tactile dual-slider master gain control.
+
+---
+
+## 📻 Personalized "Home" Discovery Feed
+
+Tapeman features a personalized discovery and resume hub directly integrated into both the mobile Plex library browser and Android Auto:
+- **The DJ Booth:** Live **Sonic DJ** toggle card with cyan audio waveforms and one-tap **Loved Tracks** launcher.
+- **"Jump Back In" Shelf:** Horizontal cassette rack of recently played albums for instant 1-tap playback.
+- **Fans Also Like / Similar Artists:** Acoustic discovery engine (`/library/metadata/{id}/similar`) surfacing similar artists with photo avatars and 1-tap **📻 Radio** station buttons.
+- **Dynamic Plex Hubs:** Automated recommendation shelves generated live by Plex Media Server (*"More in Electronic"*, *"More by Daft Punk"*, *"Most Played in October"*, etc.).
+
+---
+
+## 🚗 Android Auto Support
+
+Tapeman provides full **Android Auto** integration using AndroidX `MediaLibraryService`:
+- **4-Cards-Across "Home" View:** The in-car **Home** screen organizes recommendations into glanceable shelves (*DJ & Favorites*, *Recommended Stations*, *Jump Back In*, and *Dynamic Plex Shelves*). Android Auto's A–Z scrubber is automatically suppressed on grouped views to expand the display into a full-width **4-column visual grid**.
+- **Smart Alphabetical Sub-Ranges (Massive Library Scalability):** Large artist and album rosters (> 40 items) are automatically partitioned into balanced ~35-item sub-ranges (e.g. `E-40 → Edith Frost`, `Ellen Allien → Elton John`). Eliminates Android Auto's ~50-item list cutoff and avoids Binder IPC buffer limits, allowing complete access to libraries with 7,600+ artists and 38,000+ albums.
+- **In-Car Voice & Text Search (`onSearch`):** Search your entire Plex library from the car console using the on-screen keyboard or Google Assistant voice commands (*"Play Daft Punk on Tapeman"*).
+- **Custom In-Car Transport Actions:** The car display's Now Playing screen provides 3 one-tap actions:
+  - **Favorite (`★`):** Love or unlove the playing track in your Plex library.
+  - **Sonic Radio (`📻`):** Instantly create an infinite radio station from the active track.
+  - **Sonic DJ (`🎧`):** Toggle continuous DJ Freeze mode to keep the music flowing when your album or playlist ends.
+- **Missing Artwork Safeguards:** Custom vector fallback artwork prevents warning triangle error icons on playlists or albums lacking cover art.
+- **Running Without Play Store:** Sideload using [UnknownAuto](https://github.com/GitMag/UnknownAuto) (with Shizuku) to register with Google Play Store origin, or enable **"Unknown sources"** in the Android Auto Developer Settings.
 
 ---
 

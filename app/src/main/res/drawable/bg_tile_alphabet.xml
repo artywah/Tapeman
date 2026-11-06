@@ -1,0 +1,37 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="256dp"
+    android:height="256dp"
+    android:viewportWidth="256"
+    android:viewportHeight="256">
+    <!-- Dark Metallic Background -->
+    <path
+        android:pathData="M16,0 H240 A16,16 0 0,1 256,16 V240 A16,16 0 0,1 240,256 H16 A16,16 0 0,1 0,240 V16 A16,16 0 0,1 16,0 Z"
+        android:fillColor="#1A1815" />
+
+    <!-- Outer Accent Frame -->
+    <path
+        android:pathData="M32,32 H224 V224 H32 Z"
+        android:strokeColor="#FFC107"
+        android:strokeWidth="3"
+        android:strokeAlpha="0.25" />
+
+    <!-- Inner Directory Card -->
+    <path
+        android:pathData="M64,64 H192 V192 H64 Z"
+        android:fillColor="#24221E"
+        android:strokeColor="#FFC107"
+        android:strokeWidth="2"
+        android:strokeAlpha="0.5" />
+
+    <!-- A-Z Letter / Index Lines Indicator -->
+    <path
+        android:pathData="M84,96 H172 M84,128 H172 M84,160 H140"
+        android:strokeColor="#FFC107"
+        android:strokeWidth="6"
+        android:strokeLineCap="round" />
+
+    <!-- Mini Star Accent -->
+    <path
+        android:pathData="M160,154 L164,166 L176,167 L167,175 L170,187 L160,181 L150,187 L153,175 L144,167 L156,166 Z"
+        android:fillColor="#00E5FF" />
+</vector>

@@ -19,8 +19,8 @@ val signingProps = Properties().apply {
 }
 
 // The app version; versionCode must go up by one with every release.
-val appVersionName = "0.3.0"
-val appVersionCode = 14
+val appVersionName = "0.4.0"
+val appVersionCode = 15
 
 base {
     archivesName = "Tapeman-$appVersionName"
@@ -88,6 +88,7 @@ dependencies {
 
     implementation("androidx.media3:media3-exoplayer:1.11.1")
     implementation("androidx.media3:media3-session:1.11.1")
+    implementation("androidx.media:media:1.7.0")
     implementation("androidx.window:window:1.5.1")
     implementation("androidx.palette:palette-ktx:1.0.0")
 
