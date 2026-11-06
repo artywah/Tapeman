@@ -184,19 +184,28 @@ class DesktopPlexClient(
         }
     }
 
-    suspend fun loadArtwork(url: String?): ImageBitmap? = withContext(Dispatchers.IO) {
-        if (url.isNullOrBlank()) return@withContext null
-        runCatching {
-            val conn = (URL(url).openConnection() as HttpURLConnection).apply {
-                connectTimeout = 8000
-                readTimeout = 12000
-                setRequestProperty("X-Plex-Token", token)
-            }
-            val bytes = conn.inputStream.use { it.readBytes() }
-            conn.disconnect()
-            val skiaImage = Image.makeFromEncoded(bytes)
-            skiaImage.toComposeImageBitmap()
-        }.getOrNull()
+    private val artworkCache = java.util.concurrent.ConcurrentHashMap<String, ImageBitmap>()
+
+    fun getCachedArtwork(url: String?): ImageBitmap? = if (url != null) artworkCache[url] else null
+
+    suspend fun loadArtwork(url: String?): ImageBitmap? {
+        if (url.isNullOrBlank()) return null
+        artworkCache[url]?.let { return it }
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 8000
+                    readTimeout = 12000
+                    setRequestProperty("X-Plex-Token", token)
+                }
+                val bytes = conn.inputStream.use { it.readBytes() }
+                conn.disconnect()
+                val skiaImage = Image.makeFromEncoded(bytes)
+                val bmp = skiaImage.toComposeImageBitmap()
+                artworkCache[url] = bmp
+                bmp
+            }.getOrNull()
+        }
     }
 
     private fun parseAlbums(meta: org.json.JSONArray): List<PlexAlbum> = buildList {

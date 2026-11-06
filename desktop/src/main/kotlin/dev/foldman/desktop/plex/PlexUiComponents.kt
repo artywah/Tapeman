@@ -1,5 +1,6 @@
 package dev.foldman.desktop.plex
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -42,10 +43,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.foldman.deck.LocalTrack
@@ -629,7 +635,13 @@ fun PlexMusicBrowser(
                     ) {
                         Text("← Back", color = Color(0xFFE5A00D), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(10.dp))
+                    AlbumThumbnail(
+                        client = client,
+                        url = selectedAlbum?.coverUrl,
+                        modifier = Modifier.size(44.dp)
+                    )
+                    Spacer(Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = selectedAlbum?.title ?: "",
@@ -831,11 +843,53 @@ fun PlexMusicBrowser(
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = Color(0xFFE5A00D), modifier = Modifier.size(30.dp))
                     }
+                } else if (currentTab == PlexBrowserTab.ARTISTS) {
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(minSize = 105.dp),
+                        contentPadding = PaddingValues(bottom = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        items(artists) { artist ->
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0xFF181A20))
+                                    .border(1.dp, Color(0xFF282B34), RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        searchQuery = artist.name
+                                        currentTab = PlexBrowserTab.ALBUMS
+                                        loadCurrentTab()
+                                    }
+                                    .padding(8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    AlbumThumbnail(
+                                        client = client,
+                                        url = artist.thumbUrl,
+                                        shape = CircleShape,
+                                        iconSize = 20.sp,
+                                        modifier = Modifier.size(76.dp)
+                                    )
+                                    Spacer(Modifier.height(6.dp))
+                                    Text(
+                                        text = artist.name,
+                                        color = Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                    }
                 } else {
                     val itemsToDisplay = if (currentTab == PlexBrowserTab.RECENT) recentAlbums else allAlbums
 
                     LazyVerticalGrid(
-                        columns = GridCells.Adaptive(minSize = 130.dp),
+                        columns = GridCells.Adaptive(minSize = 125.dp),
                         contentPadding = PaddingValues(bottom = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -858,17 +912,13 @@ fun PlexMusicBrowser(
                                     .padding(8.dp)
                             ) {
                                 Column {
-                                    // Placeholder album cover art
-                                    Box(
+                                    AlbumThumbnail(
+                                        client = client,
+                                        url = album.coverUrl,
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .height(110.dp)
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .background(Color(0xFF232630)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text("♪", color = Color(0xFFE5A00D), fontSize = 28.sp)
-                                    }
+                                            .height(115.dp)
+                                    )
                                     Spacer(Modifier.height(6.dp))
                                     Text(
                                         text = album.title,
@@ -889,6 +939,40 @@ fun PlexMusicBrowser(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun AlbumThumbnail(
+    client: DesktopPlexClient,
+    url: String?,
+    modifier: Modifier = Modifier,
+    shape: Shape = RoundedCornerShape(6.dp),
+    iconSize: TextUnit = 24.sp,
+) {
+    var bitmap by remember(url) { mutableStateOf(client.getCachedArtwork(url)) }
+    LaunchedEffect(url) {
+        if (bitmap == null && !url.isNullOrBlank()) {
+            bitmap = client.loadArtwork(url)
+        }
+    }
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .background(Color(0xFF20232B)),
+        contentAlignment = Alignment.Center
+    ) {
+        val bmp = bitmap
+        if (bmp != null) {
+            Image(
+                bitmap = bmp,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Text("♪", color = Color(0xFFE5A00D).copy(alpha = 0.7f), fontSize = iconSize)
         }
     }
 }

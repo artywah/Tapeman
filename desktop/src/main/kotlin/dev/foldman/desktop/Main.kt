@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
@@ -72,17 +73,36 @@ fun main() = application {
     val authService = remember { PlexAuthService() }
     val plexClient = remember { DesktopPlexClient() }
 
+    val windowState = rememberWindowState(width = 980.dp, height = 620.dp)
+    var isMiniPlayer by remember { mutableStateOf(false) }
+
     Window(
         onCloseRequest = {
             audioBackend.release()
             mechSounds.release()
             exitApplication()
         },
-        title = "Tapeman · Retro Stereo Cassette Player",
-        state = rememberWindowState(width = 1200.dp, height = 820.dp),
+        title = if (isMiniPlayer) "Tapeman" else "Tapeman · Retro Stereo Cassette Player",
+        state = windowState,
+        alwaysOnTop = isMiniPlayer,
+        resizable = !isMiniPlayer,
     ) {
         MaterialTheme {
-            TapemanDesktopApp(mechSounds, audioBackend, authService, plexClient)
+            TapemanDesktopApp(
+                mechSounds = mechSounds,
+                audioBackend = audioBackend,
+                authService = authService,
+                plexClient = plexClient,
+                isMiniPlayer = isMiniPlayer,
+                onToggleMiniPlayer = {
+                    isMiniPlayer = !isMiniPlayer
+                    if (isMiniPlayer) {
+                        windowState.size = DpSize(560.dp, 370.dp)
+                    } else {
+                        windowState.size = DpSize(980.dp, 620.dp)
+                    }
+                }
+            )
         }
     }
 }
@@ -93,6 +113,8 @@ fun TapemanDesktopApp(
     audioBackend: JavaFxAudioBackend,
     authService: PlexAuthService,
     plexClient: DesktopPlexClient,
+    isMiniPlayer: Boolean = false,
+    onToggleMiniPlayer: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
 
@@ -251,140 +273,92 @@ fun TapemanDesktopApp(
         ) {
             Column(
                 modifier = Modifier
-                    .padding(14.dp)
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
                     .fillMaxSize(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                // Top Master Navigation Bar (Arty Tapeman badging, library switcher, shell picker, settings)
+                // Top Window Header Bar: clean, no redundant logos
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp, vertical = 2.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Left: Arty Tapeman Custom Header Branding
+                    // Left: Server / Library Status Breadcrumb
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text(
-                            text = "ARTY",
-                            style = androidx.compose.ui.text.TextStyle(
-                                fontFamily = FontFamily.Serif,
-                                fontWeight = FontWeight.Black,
-                                fontSize = 18.sp,
-                                letterSpacing = 2.5.sp,
-                                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                                    listOf(Color(0xFFFFFFFF), Color(0xFFD5D9DF), Color(0xFF9EA4AC), Color(0xFFE6E9EE))
-                                ),
-                            ),
-                        )
-                        Text(
-                            text = "TAPEMAN",
-                            style = androidx.compose.ui.text.TextStyle(
-                                fontFamily = FontFamily.SansSerif,
-                                fontWeight = FontWeight.Black,
-                                fontSize = 16.sp,
-                                letterSpacing = 1.6.sp,
-                                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                                    listOf(Color(0xFFF6F8FA), Color(0xFFC2C7CE), Color(0xFF9BA0A8))
-                                ),
-                            ),
-                        )
                         Box(
                             modifier = Modifier
-                                .border(1.dp, Color(0xFFB8BDC4), RoundedCornerShape(50))
-                                .padding(horizontal = 5.dp, vertical = 1.dp)
-                        ) {
-                            Text(
-                                "AVLS",
-                                style = androidx.compose.ui.text.TextStyle(
-                                    fontFamily = FontFamily.SansSerif,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 7.5.sp,
-                                    letterSpacing = 0.8.sp,
-                                    color = Color(0xFFC8CDD4),
-                                ),
-                            )
-                        }
-                        Text(
-                            "v1.0.0",
-                            style = androidx.compose.ui.text.TextStyle(
-                                fontFamily = FontFamily.SansSerif,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 8.sp,
-                                letterSpacing = 1.0.sp,
-                                color = Color(0xFF888D96),
-                            ),
+                                .size(7.dp)
+                                .background(if (savedConfig != null) Color(0xFF4CAF50) else Color(0xFF6B7280), CircleShape)
                         )
                         Text(
-                            "· STEREO CASSETTE PLAYER",
+                            text = if (savedConfig != null) {
+                                "${savedConfig?.serverName ?: "Plex"} · ${savedConfig?.libraryName ?: "Music"}".uppercase()
+                            } else {
+                                "STANDALONE MODE"
+                            },
                             style = androidx.compose.ui.text.TextStyle(
                                 fontFamily = FontFamily.Monospace,
-                                fontSize = 9.sp,
-                                letterSpacing = 1.5.sp,
-                                color = Color(0xFF636770),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.2.sp,
+                                color = Color(0xFF8E93A0),
                             ),
                         )
                     }
 
-                    // Right: Cassette Archive Pills, Library Toggle, Settings
+                    // Right: Mini Player, Library Toggle, Settings
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Vintage Cassette Archive Selector Pills
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            items(CassetteShell.entries) { shell ->
-                                val isSelected = shell == selectedShell
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(if (isSelected) Color(0xFF282B33) else Color(0xFF141518))
-                                        .border(
-                                            1.dp,
-                                            if (isSelected) Color(0xFFE5A00D) else Color(0xFF23252B),
-                                            RoundedCornerShape(4.dp)
-                                        )
-                                        .clickable {
-                                            mechSounds.keyDown()
-                                            selectedShell = shell
-                                        }
-                                        .padding(horizontal = 7.dp, vertical = 3.dp)
-                                ) {
-                                    Text(
-                                        text = shell.displayName,
-                                        color = if (isSelected) Color(0xFFE5A00D) else Color(0xFF90949E),
-                                        fontSize = 10.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    )
-                                }
-                            }
-                        }
-
-                        // Retractable Library Browser Toggle Button
+                        // Mini Player Toggle Button
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(if (showLibraryBrowser) Color(0xFF262830) else Color(0xFF17181C))
+                                .background(if (isMiniPlayer) Color(0xFF262830) else Color(0xFF17181C))
                                 .border(1.dp, Color(0xFF333640), RoundedCornerShape(6.dp))
                                 .clickable {
                                     mechSounds.keyDown()
-                                    showLibraryBrowser = !showLibraryBrowser
+                                    onToggleMiniPlayer()
                                 }
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                                .padding(horizontal = 9.dp, vertical = 5.dp)
                         ) {
                             Text(
-                                text = if (showLibraryBrowser) "Hide Library" else "Show Library",
+                                text = if (isMiniPlayer) "⤢ Full View" else "▣ Mini Player",
                                 color = Color(0xFFDFDFE5),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Medium
                             )
                         }
 
-                        // Single Unified Settings Button with connection indicator
+                        // Library Browser Toggle (only visible in full view)
+                        if (!isMiniPlayer) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(if (showLibraryBrowser) Color(0xFF262830) else Color(0xFF17181C))
+                                    .border(1.dp, Color(0xFF333640), RoundedCornerShape(6.dp))
+                                    .clickable {
+                                        mechSounds.keyDown()
+                                        showLibraryBrowser = !showLibraryBrowser
+                                    }
+                                    .padding(horizontal = 9.dp, vertical = 5.dp)
+                            ) {
+                                Text(
+                                    text = if (showLibraryBrowser) "Hide Library" else "Show Library",
+                                    color = Color(0xFFDFDFE5),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+
+                        // Settings Button
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
@@ -394,7 +368,7 @@ fun TapemanDesktopApp(
                                     mechSounds.keyDown()
                                     showPlexDialog = true
                                 }
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                                .padding(horizontal = 9.dp, vertical = 5.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text("⚙ Settings", color = Color(0xFFDFDFE5), fontSize = 11.sp, fontWeight = FontWeight.Medium)
@@ -402,7 +376,7 @@ fun TapemanDesktopApp(
                                     Spacer(Modifier.width(6.dp))
                                     Box(
                                         modifier = Modifier
-                                            .size(6.dp)
+                                            .size(5.dp)
                                             .background(Color(0xFF4CAF50), CircleShape)
                                     )
                                 }
@@ -411,46 +385,15 @@ fun TapemanDesktopApp(
                     }
                 }
 
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(8.dp))
 
-                // Main Content Workspace: Plex Browser + Walkman Hardware Player Unit
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    // Left Pane: Plex Music Browser (retractable)
-                    if (showLibraryBrowser) {
-                        PlexMusicBrowser(
-                            client = plexClient,
-                            currentConfig = savedConfig,
-                            onSwitchLibrary = { newSecId, newSecName ->
-                                savedConfig?.let { cfg ->
-                                    val updated = cfg.copy(libraryName = newSecName, librarySectionId = newSecId)
-                                    authService.saveConfig(updated)
-                                    savedConfig = updated
-                                    plexClient.sectionId = newSecId
-                                }
-                            },
-                            onTrackSelected = { track, queue, album ->
-                                val idx = queue.indexOfFirst { it.uri == track.uri }.coerceAtLeast(0)
-                                playPlexTrack(track, album, queue, idx)
-                            },
-                            onOpenConnectDialog = { showPlexDialog = true },
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                        )
-                    }
-
-                    // Right Pane: Authentic Sony Walkman WM-RX707 Hardware Player Unit
-                    // Uses fixed aspect ratio 0.68f (matching real physical Walkman proportions) so it never squishes or compresses
+                // Main Content Workspace
+                if (isMiniPlayer) {
+                    // Mini Player View: Just the authentic Walkman deck
                     Box(
                         modifier = Modifier
-                            .fillMaxHeight()
-                            .aspectRatio(0.68f, matchHeightConstraintsFirst = true),
+                            .fillMaxSize()
+                            .padding(top = 4.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         WalkmanPlayerUnit(
@@ -526,9 +469,191 @@ fun TapemanDesktopApp(
                                 mechSounds.keyDown()
                                 anim.reels.resetCounter()
                             },
-                            modifier = Modifier.fillMaxSize(),
-                            forcePortrait = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(1.52f),
+                            forcePortrait = false,
                         )
+                    }
+                } else {
+                    // Standard Dual View: Library + Walkman Player Unit
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        // Left Pane: Plex Music Browser (retractable)
+                        if (showLibraryBrowser) {
+                            PlexMusicBrowser(
+                                client = plexClient,
+                                currentConfig = savedConfig,
+                                onSwitchLibrary = { newSecId, newSecName ->
+                                    savedConfig?.let { cfg ->
+                                        val updated = cfg.copy(libraryName = newSecName, librarySectionId = newSecId)
+                                        authService.saveConfig(updated)
+                                        savedConfig = updated
+                                        plexClient.sectionId = newSecId
+                                    }
+                                },
+                                onTrackSelected = { track, queue, album ->
+                                    val idx = queue.indexOfFirst { it.uri == track.uri }.coerceAtLeast(0)
+                                    playPlexTrack(track, album, queue, idx)
+                                },
+                                onOpenConnectDialog = { showPlexDialog = true },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                            )
+                        }
+
+                        // Right Pane: Authentic Sony Walkman WM-RX707 Hardware Player Unit
+                        Column(
+                            modifier = if (showLibraryBrowser) Modifier.weight(1.15f).fillMaxHeight() else Modifier.fillMaxSize(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(1.52f),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                WalkmanPlayerUnit(
+                                    ui = ui,
+                                    anim = anim,
+                                    doorOpen = cassetteDoorOpen,
+                                    onToggleDoor = {
+                                        cassetteDoorOpen = !cassetteDoorOpen
+                                        if (cassetteDoorOpen) mechSounds.keyDown() else mechSounds.autoStop()
+                                    },
+                                    onCloseDoor = {
+                                        if (cassetteDoorOpen) {
+                                            cassetteDoorOpen = false
+                                            mechSounds.autoStop()
+                                        }
+                                    },
+                                    onPlayToggle = {
+                                        if (isPlaying) {
+                                            mechSounds.pause()
+                                            audioBackend.pause()
+                                        } else {
+                                            mechSounds.play()
+                                            if (activeTrackUrl != null) {
+                                                audioBackend.resume()
+                                            } else if (currentQueue.isNotEmpty()) {
+                                                currentAlbum?.let { playPlexTrack(currentQueue[currentTrackIndex], it, currentQueue, currentTrackIndex) }
+                                            }
+                                        }
+                                    },
+                                    onStop = {
+                                        mechSounds.stop()
+                                        audioBackend.stop()
+                                    },
+                                    onRewind = {
+                                        mechSounds.rewind()
+                                        if (activeTrackUrl != null) {
+                                            val newPos = (audioPosMs - 10000L).coerceAtLeast(0L)
+                                            audioBackend.seekTo(newPos)
+                                        }
+                                    },
+                                    onFastForward = {
+                                        mechSounds.fastForward()
+                                        if (activeTrackUrl != null && durationMs > 0L) {
+                                            val newPos = (audioPosMs + 10000L).coerceAtMost(durationMs)
+                                            audioBackend.seekTo(newPos)
+                                        }
+                                    },
+                                    onPrevious = { playPrevious() },
+                                    onNext = { playNext() },
+                                    onSetVolume = { v ->
+                                        volume = v
+                                        audioBackend.setVolume(v)
+                                    },
+                                    onToggleDbb = { enabled ->
+                                        dbbEnabled = enabled
+                                        mechSounds.switchFlip()
+                                    },
+                                    onToggleAvls = { enabled ->
+                                        avlsEnabled = enabled
+                                        mechSounds.switchFlip()
+                                    },
+                                    onCycleShell = {
+                                        val shells = CassetteShell.entries
+                                        val nextIdx = (selectedShell.ordinal + 1) % shells.size
+                                        selectedShell = shells[nextIdx]
+                                        mechSounds.solenoid()
+                                    },
+                                    onToggleHold = { locked ->
+                                        holdLocked = locked
+                                        mechSounds.switchFlip()
+                                    },
+                                    onResetCounter = {
+                                        mechSounds.keyDown()
+                                        anim.reels.resetCounter()
+                                    },
+                                    modifier = Modifier.fillMaxSize(),
+                                    forcePortrait = false,
+                                )
+                            }
+
+                            Spacer(Modifier.height(10.dp))
+
+                            // Dedicated Cassette Tape Archive Selector Tray
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0xFF131417))
+                                    .border(1.dp, Color(0xFF22242B), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    "TAPE ARCHIVE",
+                                    style = androidx.compose.ui.text.TextStyle(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 1.sp,
+                                        color = Color(0xFF727680)
+                                    )
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                LazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    items(CassetteShell.entries) { shell ->
+                                        val isSelected = shell == selectedShell
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(if (isSelected) Color(0xFF282B33) else Color(0xFF181A20))
+                                                .border(
+                                                    1.dp,
+                                                    if (isSelected) Color(0xFFE5A00D) else Color(0xFF262832),
+                                                    RoundedCornerShape(4.dp)
+                                                )
+                                                .clickable {
+                                                    mechSounds.keyDown()
+                                                    selectedShell = shell
+                                                }
+                                                .padding(horizontal = 7.dp, vertical = 3.dp)
+                                        ) {
+                                            Text(
+                                                text = shell.displayName,
+                                                color = if (isSelected) Color(0xFFE5A00D) else Color(0xFF90949E),
+                                                fontSize = 10.sp,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
