@@ -15,15 +15,15 @@ import kotlin.random.Random
  *  - [keyUp]: light tactile microswitch release tick.
  *  - [autoStop]: mechanical solenoid latch release thunk.
  */
-class MechSounds {
+class MechSounds : MechSoundFeedback {
     private val rate = 44100
     private val latch = track(synthLogicDown())
     private val release = track(synth(0.022f, thump = 240f, ring = 4200f, click = 0.55f, gain = 0.28f))
     private val thunk = track(synth(0.085f, thump = 72f, ring = 1450f, click = 0.65f, gain = 0.68f))
 
-    fun keyDown() = play(latch)
-    fun keyUp() = play(release)
-    fun autoStop() = play(thunk)
+    override fun keyDown() = play(latch)
+    override fun keyUp() = play(release)
+    override fun autoStop() = play(thunk)
 
     private fun play(t: AudioTrack?) {
         t ?: return
@@ -99,5 +99,3 @@ class MechSounds {
         listOf(latch, release, thunk).forEach { it?.release() }
     }
 }
-
-val LocalMechSounds = staticCompositionLocalOf<MechSounds?> { null }

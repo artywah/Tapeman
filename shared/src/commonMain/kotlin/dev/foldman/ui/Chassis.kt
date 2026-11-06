@@ -23,6 +23,19 @@ import androidx.compose.ui.unit.sp
 import dev.foldman.deck.Source
 import kotlin.random.Random
 
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Constraints
+
+fun Modifier.quarterTurn(enabled: Boolean = true, clockwise: Boolean = false): Modifier =
+    if (!enabled) this else layout { measurable, c ->
+        val p = measurable.measure(Constraints(c.minHeight, c.maxHeight, c.minWidth, c.maxWidth))
+        layout(p.height, p.width) {
+            p.placeWithLayer((p.height - p.width) / 2, (p.width - p.height) / 2) {
+                rotationZ = if (clockwise) 90f else -90f
+            }
+        }
+    }
+
 object DeckColors {
     val Backdrop = Color(0xFF0E0E10)
     // WM-RX707 Matte Charcoal-Black Anodized Aluminum

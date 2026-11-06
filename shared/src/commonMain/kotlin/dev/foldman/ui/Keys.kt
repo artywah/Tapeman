@@ -1,6 +1,5 @@
 package dev.foldman.ui
 
-import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -46,7 +45,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -342,7 +340,7 @@ fun ChromeLogicButton(
     labelAngle: Float = 0f,
 ) {
     var pressed by remember { mutableStateOf(false) }
-    val view = LocalView.current
+    val deckHaptics = LocalDeckHaptics.current
     val sounds = LocalMechSounds.current
     val haptics = LocalHaptics.current
     val action by rememberUpdatedState(onPress)
@@ -369,16 +367,16 @@ fun ChromeLogicButton(
             .pointerInput(locked) {
                 detectTapGestures(onPress = {
                     if (locked) {
-                        if (haptics) view.performHapticFeedback(HapticFeedbackConstants.REJECT)
+                        if (haptics) deckHaptics?.tap()
                         return@detectTapGestures
                     }
                     pressed = true
-                    if (haptics) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_PRESS)
+                    if (haptics) deckHaptics?.tap()
                     sounds?.keyDown()
                     action()
                     tryAwaitRelease()
                     pressed = false
-                    if (haptics) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_RELEASE)
+                    if (haptics) deckHaptics?.tap()
                     sounds?.keyUp()
                 })
             },
@@ -630,7 +628,7 @@ fun DeckKey(
     captionColor: Color = DeckColors.PodSilkscreen,
 ) {
     var pressed by remember { mutableStateOf(false) }
-    val view = LocalView.current
+    val deckHaptics = LocalDeckHaptics.current
     val sounds = LocalMechSounds.current
     val haptics = LocalHaptics.current
     val action by rememberUpdatedState(onPress)
@@ -663,12 +661,12 @@ fun DeckKey(
                 .pointerInput(Unit) {
                     detectTapGestures(onPress = {
                         pressed = true
-                        if (haptics) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_PRESS)
+                        if (haptics) deckHaptics?.tap()
                         sounds?.keyDown()
                         action()
                         tryAwaitRelease()
                         pressed = false
-                        if (haptics) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_RELEASE)
+                        if (haptics) deckHaptics?.tap()
                         sounds?.keyUp()
                     })
                 },
@@ -860,7 +858,7 @@ fun MiniButton(
     captionColor: Color = DeckColors.EngraveLight,
 ) {
     var pressed by remember { mutableStateOf(false) }
-    val view = LocalView.current
+    val deckHaptics = LocalDeckHaptics.current
     val sounds = LocalMechSounds.current
     val haptics = LocalHaptics.current
     val action by rememberUpdatedState(onPress)
@@ -874,7 +872,7 @@ fun MiniButton(
                     if (!enabled) return@pointerInput
                     detectTapGestures(onPress = {
                         pressed = true
-                        if (haptics) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        if (haptics) deckHaptics?.tap()
                         sounds?.keyUp()
                         action()
                         tryAwaitRelease()

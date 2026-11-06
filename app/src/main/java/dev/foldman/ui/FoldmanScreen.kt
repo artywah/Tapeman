@@ -222,8 +222,17 @@ fun FoldmanScreen(
     val deck = remember(vm) { DeckControls(vm) }
     val fold = windowLayout?.displayFeatures?.filterIsInstance<FoldingFeature>()?.firstOrNull()
 
+    val haptics = remember(view) {
+        object : DeckHaptics {
+            override fun tick() { view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK) }
+            override fun tap() { view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP) }
+            override fun longPress() { view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS) }
+        }
+    }
+
     CompositionLocalProvider(
         LocalMechSounds provides sounds.takeIf { ui.keySounds },
+        LocalDeckHaptics provides haptics,
         LocalHaptics provides ui.haptics,
     ) {
         BoxWithConstraints(

@@ -1,6 +1,5 @@
 package dev.foldman.ui
 
-import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
@@ -26,7 +25,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
@@ -43,7 +41,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -63,23 +60,6 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.random.Random
-
-/** Whether the keys buzz; the deck's HAPTIC switch sets it. */
-val LocalHaptics = staticCompositionLocalOf { true }
-
-/**
- * Lays the content out a quarter-turn anticlockwise (or clockwise when [clockwise] is true):
- * measured with width and height swapped, then rotated.
- */
-fun Modifier.quarterTurn(enabled: Boolean = true, clockwise: Boolean = false): Modifier =
-    if (!enabled) this else layout { measurable, c ->
-        val p = measurable.measure(Constraints(c.minHeight, c.maxHeight, c.minWidth, c.maxWidth))
-        layout(p.height, p.width) {
-            p.placeWithLayer((p.height - p.width) / 2, (p.width - p.height) / 2) {
-                rotationZ = if (clockwise) 90f else -90f
-            }
-        }
-    }
 
 /**
  * Matte charcoal-black anodized metal body of the Sony Walkman WM-RX707:
@@ -263,7 +243,7 @@ fun Rx707HoldSwitch(
     onToggle: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val view = LocalView.current
+    val deckHaptics = LocalDeckHaptics.current
     val haptics = LocalHaptics.current
     val sounds = LocalMechSounds.current
     val toggle by rememberUpdatedState(onToggle)
@@ -282,7 +262,7 @@ fun Rx707HoldSwitch(
             }
             .pointerInput(Unit) {
                 detectTapGestures {
-                    if (haptics) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    if (haptics) deckHaptics?.tap()
                     sounds?.keyDown()
                     toggle(!state)
                 }
@@ -395,7 +375,7 @@ fun Rx707HoldSwitch(
 @Composable
 fun Rx707OpenLatch(onClick: () -> Unit, modifier: Modifier = Modifier, label: String = "OPEN") {
     val action by rememberUpdatedState(onClick)
-    val view = LocalView.current
+    val deckHaptics = LocalDeckHaptics.current
     val haptics = LocalHaptics.current
     val sounds = LocalMechSounds.current
     var pressed by remember { mutableStateOf(false) }
@@ -411,7 +391,7 @@ fun Rx707OpenLatch(onClick: () -> Unit, modifier: Modifier = Modifier, label: St
                 .pointerInput(Unit) {
                     detectTapGestures(onPress = {
                         pressed = true
-                        if (haptics) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_PRESS)
+                        if (haptics) deckHaptics?.tap()
                         sounds?.keyDown()
                         action()
                         tryAwaitRelease()
@@ -480,7 +460,7 @@ fun Rx707RecButton(
 ) {
     val action by rememberUpdatedState(onClick)
     val longAction by rememberUpdatedState(onLongClick)
-    val view = LocalView.current
+    val deckHaptics = LocalDeckHaptics.current
     val haptics = LocalHaptics.current
     val sounds = LocalMechSounds.current
     var down by remember { mutableStateOf(false) }
@@ -497,7 +477,7 @@ fun Rx707RecButton(
                     detectTapGestures(
                         onPress = {
                             down = true
-                            if (haptics) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_PRESS)
+                            if (haptics) deckHaptics?.tap()
                             sounds?.keyDown()
                             tryAwaitRelease()
                             down = false
@@ -507,7 +487,7 @@ fun Rx707RecButton(
                         },
                         onLongPress = {
                             if (longAction != null) {
-                                if (haptics) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                if (haptics) deckHaptics?.longPress()
                                 longAction?.invoke()
                             } else {
                                 action()
@@ -558,7 +538,7 @@ fun Rx707RecButton(
                 subLabel,
                 style = EngravedCaps.copy(fontSize = 7.sp, letterSpacing = 0.8.sp, color = Color(0xFFC42714), fontWeight = FontWeight.Bold),
                 modifier = Modifier.clickable {
-                    if (haptics) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    if (haptics) deckHaptics?.tap()
                     if (longAction != null) longAction?.invoke() else action()
                 },
             )
@@ -577,7 +557,7 @@ fun SlideSwitch(
     offLabel: String = "OFF",
     height: Dp = 54.dp,
 ) {
-    val view = LocalView.current
+    val deckHaptics = LocalDeckHaptics.current
     val haptics = LocalHaptics.current
     val sounds = LocalMechSounds.current
     val toggle by rememberUpdatedState(onToggle)
@@ -596,7 +576,7 @@ fun SlideSwitch(
                 }
                 .pointerInput(Unit) {
                     detectTapGestures {
-                        if (haptics) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        if (haptics) deckHaptics?.tick()
                         sounds?.keyDown()
                         toggle(!state)
                     }

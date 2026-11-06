@@ -12,4 +12,6 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "tapeman"
+include(":shared")
 include(":app")
+include(":desktop")
