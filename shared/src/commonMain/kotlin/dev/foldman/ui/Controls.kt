@@ -197,7 +197,7 @@ fun Rx707Header(modifier: Modifier = Modifier, compact: Boolean = false) {
                     )
                 }
                 Text(
-                    "v0.2.1",
+                    "v1.0.0",
                     style = TextStyle(
                         fontFamily = FontFamily.SansSerif,
                         fontWeight = FontWeight.Bold,

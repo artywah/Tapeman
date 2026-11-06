@@ -96,7 +96,7 @@ fun main() = application {
             mechSounds.release()
             exitApplication()
         },
-        title = "Tapeman · Sony Walkman WM-RX707 Desktop",
+        title = "Tapeman · Retro Stereo Cassette Player",
         state = rememberWindowState(width = 1180.dp, height = 790.dp),
     ) {
         MaterialTheme {
@@ -150,7 +150,7 @@ fun TapemanDesktopApp(
 
     // Track & Queue metadata
     var trackTitle by remember { mutableStateOf("Automatic Music Sensor") }
-    var trackArtist by remember { mutableStateOf("Sony Walkman WM-RX707") }
+    var trackArtist by remember { mutableStateOf("Arty · Tapeman") }
     var albumTitle by remember { mutableStateOf("Type IV Metal Master") }
     var albumArtwork by remember { mutableStateOf<ImageBitmap?>(null) }
     var activeTrackUrl by remember { mutableStateOf<String?>(null) }
@@ -267,26 +267,72 @@ fun TapemanDesktopApp(
                     .fillMaxSize(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                // Top Master Navigation Bar (Plex library switcher, mode toggles, unified settings)
+                // Top Master Navigation Bar (Arty Tapeman badging, library switcher, mode toggles, settings)
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Left: Vintage Sony Walkman Typography
-                    Column {
+                    // Left: Arty Tapeman Custom Header Branding
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         Text(
-                            text = "SONY WALKMAN WM-RX707",
-                            color = Color(0xFFD4AF37),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 2.sp,
-                            fontFamily = FontFamily.Monospace,
+                            text = "ARTY",
+                            style = androidx.compose.ui.text.TextStyle(
+                                fontFamily = FontFamily.Serif,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 18.sp,
+                                letterSpacing = 2.5.sp,
+                                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                                    listOf(Color(0xFFFFFFFF), Color(0xFFD5D9DF), Color(0xFF9EA4AC), Color(0xFFE6E9EE))
+                                ),
+                            ),
                         )
                         Text(
-                            text = "STEREO CASSETTE PLAYER · LOGIC CONTROL · AUTO REVERSE",
-                            color = Color(0xFF888890),
-                            fontSize = 9.5.sp,
+                            text = "TAPEMAN",
+                            style = androidx.compose.ui.text.TextStyle(
+                                fontFamily = FontFamily.SansSerif,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 16.sp,
+                                letterSpacing = 1.6.sp,
+                                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                                    listOf(Color(0xFFF6F8FA), Color(0xFFC2C7CE), Color(0xFF9BA0A8))
+                                ),
+                            ),
+                        )
+                        Box(
+                            modifier = Modifier
+                                .border(1.dp, Color(0xFFB8BDC4), RoundedCornerShape(50))
+                                .padding(horizontal = 5.dp, vertical = 1.dp)
+                        ) {
+                            Text(
+                                text = "AVLS",
+                                color = Color(0xFFC8CDD4),
+                                fontSize = 7.5.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 0.8.sp,
+                                fontFamily = FontFamily.SansSerif,
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .border(1.dp, Color(0xFF484B54), RoundedCornerShape(4.dp))
+                                .padding(horizontal = 5.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "v1.0.0",
+                                color = Color(0xFFA0A4B0),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                            )
+                        }
+                        Text(
+                            text = "·  STEREO CASSETTE PLAYER",
+                            color = Color(0xFF7E828D),
+                            fontSize = 10.sp,
                             letterSpacing = 1.sp,
                             fontFamily = FontFamily.Monospace,
                         )
@@ -334,7 +380,7 @@ fun TapemanDesktopApp(
                                 }
                             )
                             ViewModeButton(
-                                text = "Walkman Window",
+                                text = "Tape Window",
                                 selected = viewMode == DeckViewMode.STADIUM_WINDOW,
                                 onClick = {
                                     mechSounds.keyDown()
