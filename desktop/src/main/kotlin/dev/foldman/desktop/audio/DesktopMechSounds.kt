@@ -28,6 +28,14 @@ class DesktopMechSounds : MechSoundFeedback {
     override fun keyUp() { if (enabled) play(release) }
     override fun autoStop() { if (enabled) play(thunk) }
 
+    fun play() { keyDown() }
+    fun pause() { keyUp() }
+    fun stop() { autoStop() }
+    fun rewind() { keyDown() }
+    fun fastForward() { keyDown() }
+    fun switchFlip() { keyUp() }
+    fun solenoid() { autoStop() }
+
     private fun play(clip: Clip?) {
         clip ?: return
         runCatching {

@@ -535,11 +535,19 @@ fun PlexMusicBrowser(
 
     val scope = rememberCoroutineScope()
 
+    val isConfigured = currentConfig != null && currentConfig.serverUrl.isNotBlank() && currentConfig.serverToken.isNotBlank()
+
     fun loadCurrentTab() {
-        if (!client.isConfigured()) return
+        if (!isConfigured) return
         scope.launch {
             loading = true
             try {
+                // Ensure client credentials match config before loading
+                currentConfig?.let {
+                    client.serverUrl = it.serverUrl
+                    client.token = it.serverToken
+                    it.librarySectionId?.let { sec -> client.sectionId = sec }
+                }
                 when (currentTab) {
                     PlexBrowserTab.RECENT -> recentAlbums = client.fetchRecentAlbums()
                     PlexBrowserTab.ALBUMS -> allAlbums = client.fetchAllAlbums(searchQuery)
@@ -553,8 +561,13 @@ fun PlexMusicBrowser(
     }
 
     // Refresh libraries and tab content when configuration or section changes
-    LaunchedEffect(currentTab, client.serverUrl, client.token, client.sectionId) {
-        if (client.isConfigured()) {
+    LaunchedEffect(currentTab, currentConfig?.serverUrl, currentConfig?.serverToken, currentConfig?.librarySectionId) {
+        if (isConfigured) {
+            currentConfig?.let {
+                client.serverUrl = it.serverUrl
+                client.token = it.serverToken
+                it.librarySectionId?.let { sec -> client.sectionId = sec }
+            }
             availableLibraries = client.fetchAvailableLibraries()
             loadCurrentTab()
         }
@@ -567,7 +580,7 @@ fun PlexMusicBrowser(
             .border(1.dp, Color(0xFF22242B), RoundedCornerShape(12.dp))
             .padding(14.dp)
     ) {
-        if (!client.isConfigured()) {
+        if (!isConfigured) {
             // Not connected placeholder
             Column(
                 modifier = Modifier.fillMaxSize(),
