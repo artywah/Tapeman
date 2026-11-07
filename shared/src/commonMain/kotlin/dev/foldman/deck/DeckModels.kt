@@ -52,14 +52,14 @@ enum class CassetteShell(
         "Maxell's iconic 1990 design featuring the High Resonance Damping Cassette Mechanism with signature ultra-wide curved oval viewing window across the spools.",
     ),
     SONY_UXPRO(
-        "sony_uxpro", "Sony UX-Pro", "Sony", "1986", "HIGH (TYPE II) · 70µs", true,
+        "sony_uxpro", "UX-Pro 90", "Tapeman", "1986", "HIGH (TYPE II) · 70µs", true,
         "Super Uniaxial High Bias",
-        "Sony's audiophile master cassette featuring an integrated ceramic tape guide block that keeps the tape perfectly aligned against Walkman heads for ultra-crisp highs.",
+        "Audiophile master cassette featuring an integrated ceramic tape guide block that keeps the tape perfectly aligned against heads for ultra-crisp highs.",
     ),
     SONY_HF(
-        "sony_hf", "Sony HF 90", "Sony", "1985", "NORMAL (TYPE I) · 120µs", false,
+        "sony_hf", "HF 90", "Tapeman", "1985", "NORMAL (TYPE I) · 120µs", false,
         "High Fidelity Gamma-Hematite",
-        "The quintessential Walkman companion from the mid-80s, recognizable worldwide by its warm-grey shell and bold orange & red racing stripes.",
+        "The quintessential retro cassette companion from the mid-80s, recognizable worldwide by its warm-grey shell and bold orange & red racing stripes.",
     ),
     TEAC_SOUND52(
         "teac_sound52", "TEAC Sound 52", "TEAC", "1984", "NORMAL (TYPE I) · 120µs", true,

@@ -1213,8 +1213,8 @@ private fun DrawScope.drawSonyUxProCassette(
     val sonySub = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Bold, color = Color(0xFFCFD8DC))
 
     val titleX = if (ui.artwork != null) 21f else 13f
-    drawCassetteText("SONY", titleX, 11.4f, 2.7f, 14f, sonyWhite, measurer, u, inverted)
-    drawCassetteText("UX-Pro 90", titleX + 15f, 11.6f, 2.3f, 18f, sonyWhite, measurer, u, inverted)
+    drawCassetteText("TAPEMAN", titleX, 11.4f, 2.7f, 15f, sonyWhite, measurer, u, inverted)
+    drawCassetteText("UX-Pro 90", titleX + 16f, 11.6f, 2.3f, 18f, sonyWhite, measurer, u, inverted)
     drawCassetteText("HIGH BIAS 70µs EQ", 58f, 11.8f, 1.8f, 30f, sonySub, measurer, u, inverted)
 
     val songTitle = ui.title ?: placeholderTitle(ui)
@@ -1276,8 +1276,8 @@ private fun DrawScope.drawSonyHfCassette(
     val blackSub = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Bold, color = Color(0xFF37474F))
 
     val titleX = if (ui.artwork != null) 22f else 13f
-    drawCassetteText("SONY", titleX, 13.5f, 3.2f, 16f, blackBold, measurer, u, inverted)
-    drawCassetteText("HF 90", titleX + 16f, 13.8f, 2.8f, 18f, blackBold, measurer, u, inverted)
+    drawCassetteText("TAPEMAN", titleX, 13.5f, 3.2f, 16f, blackBold, measurer, u, inverted)
+    drawCassetteText("HF 90", titleX + 17f, 13.8f, 2.8f, 18f, blackBold, measurer, u, inverted)
     drawCassetteText("NORMAL BIAS 120µs EQ", 52f, 14.2f, 2.0f, 35f, blackSub, measurer, u, inverted)
 
     val songTitle = ui.title ?: placeholderTitle(ui)

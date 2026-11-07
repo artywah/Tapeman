@@ -1,5 +1,11 @@
 package dev.foldman.desktop.plex
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -18,6 +24,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -31,10 +38,14 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -50,6 +61,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -57,9 +69,14 @@ import androidx.compose.ui.unit.sp
 import dev.foldman.deck.LocalTrack
 import dev.foldman.deck.PlexAlbum
 import dev.foldman.deck.PlexArtist
+import dev.foldman.desktop.device.AudioOutputDevice
+import dev.foldman.desktop.device.DeviceDiscoveryService
+import dev.foldman.desktop.device.DeviceType
 import kotlinx.coroutines.launch
 
 enum class PlexBrowserTab(val title: String) {
+    HOME("Home"),
+    PLAYLISTS("Playlists"),
     RECENT("Recent"),
     ALBUMS("Albums"),
     ARTISTS("Artists"),
@@ -71,6 +88,7 @@ fun PlexConnectionDialog(
     authService: PlexAuthService,
     currentConfig: PlexSavedConfig?,
     keySoundsEnabled: Boolean,
+    deviceService: DeviceDiscoveryService? = null,
     onToggleKeySounds: (Boolean) -> Unit,
     onConnected: (PlexSavedConfig) -> Unit,
     onDisconnect: () -> Unit,
@@ -113,10 +131,10 @@ fun PlexConnectionDialog(
                 .clip(RoundedCornerShape(12.dp))
                 .background(Color(0xFF16181C))
                 .border(1.dp, Color(0xFF2E323B), RoundedCornerShape(12.dp))
-                .clickable(enabled = false) {} // Consume clicks inside dialog
+                .clickable(enabled = false) {}
                 .padding(24.dp)
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(modifier = Modifier.fillMaxWidth()) {
                 // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -124,17 +142,20 @@ fun PlexConnectionDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "SETTINGS · PLEX SERVER",
-                        color = Color(0xFFE5A00D), // Plex Gold
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.5.sp,
-                        fontFamily = FontFamily.Monospace,
+                        text = "SETTINGS · PLEX SERVER & AUDIO",
+                        style = TextStyle(
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = Color(0xFFE5A00D),
+                            letterSpacing = 1.5.sp
+                        )
                     )
                     Text(
                         text = "✕",
                         color = Color(0xFF888B94),
                         fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
                         modifier = Modifier
                             .clickable(onClick = onDismiss)
                             .padding(4.dp)
@@ -144,7 +165,7 @@ fun PlexConnectionDialog(
                 Spacer(Modifier.height(16.dp))
 
                 if (currentConfig != null) {
-                    // Currently connected state
+                    // Already connected info box
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -158,6 +179,7 @@ fun PlexConnectionDialog(
                                     modifier = Modifier
                                         .size(8.dp)
                                         .background(Color(0xFF4CAF50), CircleShape)
+                                        .border(1.dp, Color(0xFF81C784), CircleShape)
                                 )
                                 Spacer(Modifier.width(8.dp))
                                 Text(
@@ -230,7 +252,7 @@ fun PlexConnectionDialog(
                     }
 
                     // Sound Effects & Mechanism Noise Toggle
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(12.dp))
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -250,43 +272,85 @@ fun PlexConnectionDialog(
                             Spacer(Modifier.height(2.dp))
                             Text(
                                 text = "Tactile clicks & solenoid transport noises",
-                                color = Color(0xFF7E828D),
+                                color = Color(0xFF70747E),
                                 fontSize = 11.sp
                             )
                         }
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(if (keySoundsEnabled) Color(0xFFE5A00D) else Color(0xFF282A31))
-                                .border(1.dp, if (keySoundsEnabled) Color(0xFFE5A00D) else Color(0xFF3E424D), RoundedCornerShape(6.dp))
+                                .background(if (keySoundsEnabled) Color(0xFFE5A00D) else Color(0xFF2A2D35))
                                 .clickable { onToggleKeySounds(!keySoundsEnabled) }
-                                .padding(horizontal = 14.dp, vertical = 7.dp)
+                                .padding(horizontal = 14.dp, vertical = 6.dp)
                         ) {
                             Text(
                                 text = if (keySoundsEnabled) "ENABLED" else "MUTED",
-                                color = if (keySoundsEnabled) Color.Black else Color(0xFFB0B4BE),
-                                fontSize = 11.sp,
+                                color = if (keySoundsEnabled) Color.Black else Color(0xFF888B94),
                                 fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp
                             )
                         }
                     }
 
-                    Spacer(Modifier.height(20.dp))
+                    // Connected Device Quick Info (Spotify Connect style)
+                    if (deviceService != null) {
+                        val currDev by deviceService.currentDevice.collectAsState()
+                        Spacer(Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFF1E2127), RoundedCornerShape(8.dp))
+                                .border(1.dp, Color(0xFF333842), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(currDev.type.icon, fontSize = 13.sp)
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        text = "Audio Target: ${currDev.name}",
+                                        color = Color.White,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    text = currDev.description.ifBlank { currDev.model ?: "Audio Device" },
+                                    color = Color(0xFF70747E),
+                                    fontSize = 11.sp
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Color(0xFF2A2D35))
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = currDev.type.label,
+                                    color = Color(0xFF00E5FF),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(18.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Button(
-                            onClick = {
-                                onDisconnect()
-                                onDismiss()
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B2B2B)),
+                            onClick = onDisconnect,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B2525)),
                             shape = RoundedCornerShape(6.dp)
                         ) {
-                            Text("Disconnect", fontSize = 12.sp)
+                            Text("Disconnect", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
 
                         Button(
@@ -294,181 +358,166 @@ fun PlexConnectionDialog(
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2D35)),
                             shape = RoundedCornerShape(6.dp)
                         ) {
-                            Text("Done", fontSize = 12.sp)
-                        }
-                    }
-                } else if (isPolling && activePin != null) {
-                    // Waiting for browser authorization
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(vertical = 12.dp)
-                    ) {
-                        CircularProgressIndicator(
-                            color = Color(0xFFE5A00D),
-                            modifier = Modifier.size(36.dp)
-                        )
-                        Spacer(Modifier.height(16.dp))
-                        Text(
-                            text = "Authorize in your browser",
-                            color = Color.White,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            text = "Code: ${activePin?.code?.uppercase()}",
-                            color = Color(0xFFE5A00D),
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            text = statusText.ifBlank { "Waiting for plex.tv ($pollSeconds s)..." },
-                            color = Color(0xFF888B94),
-                            fontSize = 12.sp
-                        )
-                        Spacer(Modifier.height(16.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Button(
-                                onClick = { activePin?.let { authService.openAuthUrl(it.authUrl) } },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE5A00D), contentColor = Color.Black),
-                                shape = RoundedCornerShape(6.dp)
-                            ) {
-                                Text("Re-open Browser", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
-                            Button(
-                                onClick = { isPolling = false },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2D35)),
-                                shape = RoundedCornerShape(6.dp)
-                            ) {
-                                Text("Cancel", fontSize = 12.sp)
-                            }
+                            Text("Done", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 } else if (!showManual) {
-                    // Standard sign in options
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                isPolling = true
-                                statusText = "Requesting link from Plex..."
-                                try {
-                                    val pin = authService.requestPin()
-                                    activePin = pin
-                                    authService.openAuthUrl(pin.authUrl)
-                                    statusText = "Waiting for authorization in browser..."
-                                    val token = authService.pollForToken(pin.id) { sec ->
-                                        pollSeconds = sec
-                                    }
-                                    if (token != null) {
-                                        statusText = "Discovering your Plex servers..."
-                                        val servers = authService.fetchServers(token)
-                                        val server = servers.firstOrNull()
-                                        if (server != null) {
-                                            statusText = "Testing connection to ${server.name}..."
-                                            val url = authService.testConnection(server) ?: server.connections.first().uri
-                                            val sections = authService.fetchMusicSections(url, server.accessToken)
-                                            // Prefer a library explicitly called "Music"
-                                            val musicSec = sections.find { it.second.equals("Music", ignoreCase = true) }
-                                                ?: sections.firstOrNull()
-
-                                            val config = PlexSavedConfig(
-                                                clientIdentifier = authService.getClientIdentifier(),
-                                                authToken = token,
-                                                serverName = server.name,
-                                                serverUrl = url,
-                                                serverToken = server.accessToken,
-                                                libraryName = musicSec?.second ?: "Music",
-                                                librarySectionId = musicSec?.first,
-                                                keySounds = keySoundsEnabled,
-                                            )
-                                            authService.saveConfig(config)
-                                            onConnected(config)
-                                            onDismiss()
-                                        } else {
-                                            statusText = "No Plex servers found under your account."
-                                            isPolling = false
-                                        }
-                                    } else {
-                                        statusText = "Sign in timed out."
-                                        isPolling = false
-                                    }
-                                } catch (e: Exception) {
-                                    statusText = "Error: ${e.message}"
-                                    isPolling = false
-                                }
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFE5A00D), // Plex gold
-                            contentColor = Color.Black
-                        ),
-                        modifier = Modifier.fillMaxWidth().height(44.dp),
-                        shape = RoundedCornerShape(8.dp)
+                    // Browser Sign-in flow
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "Sign In with Plex",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
+                            text = "Sign in with your Plex account in your browser to discover and connect to your servers automatically.",
+                            color = Color(0xFFA0A4AE),
+                            fontSize = 12.sp,
+                            lineHeight = 18.sp
                         )
+
+                        Spacer(Modifier.height(20.dp))
+
+                        if (isPolling && activePin != null) {
+                            CircularProgressIndicator(
+                                color = Color(0xFFE5A00D),
+                                modifier = Modifier.size(36.dp)
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                text = "Code: ${activePin?.code}",
+                                color = Color(0xFFE5A00D),
+                                fontSize = 18.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = "Waiting for authorization in browser (${pollSeconds}s)...",
+                                color = Color(0xFF888B94),
+                                fontSize = 11.sp
+                            )
+                            if (statusText.isNotBlank()) {
+                                Spacer(Modifier.height(4.dp))
+                                Text(text = statusText, color = Color(0xFFE5A00D), fontSize = 11.sp)
+                            }
+                        } else {
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        isPolling = true
+                                        statusText = "Requesting PIN from Plex..."
+                                        try {
+                                            val pin = authService.requestPin()
+                                            activePin = pin
+                                            authService.openAuthUrl(pin.authUrl)
+                                            statusText = "Opening browser..."
+
+                                            val authToken = authService.pollForToken(pin.id) { sec ->
+                                                pollSeconds = sec
+                                            }
+
+                                            if (authToken != null) {
+                                                statusText = "Signed in! Discovering servers..."
+                                                val servers = authService.fetchServers(authToken)
+                                                if (servers.isNotEmpty()) {
+                                                    val server = servers.first()
+                                                    val bestUrl = authService.testConnection(server)
+                                                        ?: server.connections.firstOrNull()?.uri
+                                                        ?: "http://localhost:32400"
+
+                                                    val sections = authService.fetchMusicSections(bestUrl, server.accessToken)
+                                                    val musicSec = sections.firstOrNull { it.second.equals("Music", ignoreCase = true) }
+                                                        ?: sections.firstOrNull()
+
+                                                    val config = PlexSavedConfig(
+                                                        clientIdentifier = authService.getClientIdentifier(),
+                                                        authToken = authToken,
+                                                        serverName = server.name,
+                                                        serverUrl = bestUrl,
+                                                        serverToken = server.accessToken,
+                                                        libraryName = musicSec?.second ?: "Music",
+                                                        librarySectionId = musicSec?.first,
+                                                        keySounds = keySoundsEnabled,
+                                                    )
+                                                    authService.saveConfig(config)
+                                                    onConnected(config)
+                                                    onDismiss()
+                                                } else {
+                                                    statusText = "No accessible Plex servers found."
+                                                }
+                                            } else {
+                                                statusText = "Sign-in timed out. Please try again."
+                                            }
+                                        } catch (t: Throwable) {
+                                            statusText = "Error: ${t.localizedMessage}"
+                                        } finally {
+                                            isPolling = false
+                                        }
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE5A00D), contentColor = Color.Black),
+                                shape = RoundedCornerShape(6.dp),
+                                modifier = Modifier.fillMaxWidth().height(42.dp)
+                            ) {
+                                Text("Sign In with Plex Browser", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            }
+
+                            Spacer(Modifier.height(12.dp))
+
+                            Text(
+                                text = "Or configure server connection manually →",
+                                color = Color(0xFF888B94),
+                                fontSize = 11.sp,
+                                modifier = Modifier.clickable { showManual = true }
+                            )
+                        }
                     }
-
-                    Spacer(Modifier.height(16.dp))
-
-                    Text(
-                        text = "Or enter Server URL & Token manually",
-                        color = Color(0xFF888B94),
-                        fontSize = 11.sp,
-                        modifier = Modifier
-                            .clickable { showManual = true }
-                            .padding(8.dp)
-                    )
                 } else {
-                    // Manual entry mode
+                    // Manual connection fields
                     Column(modifier = Modifier.fillMaxWidth()) {
-                        Text("Server URL (e.g. http://192.168.1.100:32400):", color = Color(0xFFA0A4AE), fontSize = 11.sp)
-                        Spacer(Modifier.height(4.dp))
                         OutlinedTextField(
                             value = manualUrl,
                             onValueChange = { manualUrl = it },
-                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Server URL (e.g. https://plex.mydomain.com)") },
                             singleLine = true,
-                            textStyle = TextStyle(color = Color.White, fontSize = 12.sp, fontFamily = FontFamily.Monospace),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color(0xFFE5A00D),
-                                unfocusedBorderColor = Color(0xFF333842)
-                            )
+                                unfocusedBorderColor = Color(0xFF333842),
+                                focusedLabelColor = Color(0xFFE5A00D),
+                                cursorColor = Color(0xFFE5A00D),
+                            ),
+                            modifier = Modifier.fillMaxWidth()
                         )
 
-                        Spacer(Modifier.height(12.dp))
-                        Text("X-Plex-Token:", color = Color(0xFFA0A4AE), fontSize = 11.sp)
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(10.dp))
+
                         OutlinedTextField(
                             value = manualToken,
                             onValueChange = { manualToken = it },
-                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("X-Plex-Token") },
                             singleLine = true,
-                            textStyle = TextStyle(color = Color.White, fontSize = 12.sp, fontFamily = FontFamily.Monospace),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color(0xFFE5A00D),
-                                unfocusedBorderColor = Color(0xFF333842)
-                            )
+                                unfocusedBorderColor = Color(0xFF333842),
+                                focusedLabelColor = Color(0xFFE5A00D),
+                                cursorColor = Color(0xFFE5A00D),
+                            ),
+                            modifier = Modifier.fillMaxWidth()
                         )
 
-                        Spacer(Modifier.height(12.dp))
-                        Text("Library Name:", color = Color(0xFFA0A4AE), fontSize = 11.sp)
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(10.dp))
+
                         OutlinedTextField(
                             value = manualLibrary,
                             onValueChange = { manualLibrary = it },
-                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Library Name (default: Music)") },
                             singleLine = true,
-                            textStyle = TextStyle(color = Color.White, fontSize = 12.sp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color(0xFFE5A00D),
-                                unfocusedBorderColor = Color(0xFF333842)
-                            )
+                                unfocusedBorderColor = Color(0xFF333842),
+                                focusedLabelColor = Color(0xFFE5A00D),
+                                cursorColor = Color(0xFFE5A00D),
+                            ),
+                            modifier = Modifier.fillMaxWidth()
                         )
 
                         Spacer(Modifier.height(16.dp))
@@ -482,19 +531,24 @@ fun PlexConnectionDialog(
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2D35)),
                                 shape = RoundedCornerShape(6.dp)
                             ) {
-                                Text("Back", fontSize = 12.sp)
+                                Text("Back to Browser Sign-In", color = Color.White, fontSize = 11.sp)
                             }
 
                             Button(
                                 onClick = {
                                     scope.launch {
+                                        val sections = authService.fetchMusicSections(manualUrl, manualToken)
+                                        val sec = sections.firstOrNull { it.second.equals(manualLibrary, ignoreCase = true) }
+                                            ?: sections.firstOrNull()
+
                                         val config = PlexSavedConfig(
                                             clientIdentifier = authService.getClientIdentifier(),
-                                            authToken = manualToken.trim(),
-                                            serverName = "Plex Media Server",
-                                            serverUrl = manualUrl.trim(),
-                                            serverToken = manualToken.trim(),
-                                            libraryName = manualLibrary.trim().ifBlank { "Music" },
+                                            authToken = manualToken,
+                                            serverName = "Plex Server",
+                                            serverUrl = manualUrl,
+                                            serverToken = manualToken,
+                                            libraryName = manualLibrary,
+                                            librarySectionId = sec?.first,
                                             keySounds = keySoundsEnabled,
                                         )
                                         authService.saveConfig(config)
@@ -502,10 +556,11 @@ fun PlexConnectionDialog(
                                         onDismiss()
                                     }
                                 },
+                                enabled = manualUrl.isNotBlank() && manualToken.isNotBlank(),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE5A00D), contentColor = Color.Black),
                                 shape = RoundedCornerShape(6.dp)
                             ) {
-                                Text("Connect", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text("Save & Connect", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             }
                         }
                     }
@@ -516,22 +571,310 @@ fun PlexConnectionDialog(
 }
 
 /**
- * Two-pane or drawer desktop Plex Music browser with multi-library switcher.
+ * Spotify Connect style device picker dialog.
+ * Lists Google Cast, AirPlay, Bluetooth, and local system audio targets.
+ */
+@Composable
+fun ConnectToDeviceDialog(
+    deviceService: DeviceDiscoveryService,
+    onDismiss: () -> Unit,
+) {
+    val currentDevice by deviceService.currentDevice.collectAsState()
+    val availableDevices by deviceService.availableDevices.collectAsState()
+    val isScanning by deviceService.isScanning.collectAsState()
+
+    var sliderVol by remember { mutableFloatStateOf(1f) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.75f))
+            .clickable(onClick = onDismiss),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .width(440.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color(0xFF16181C))
+                .border(1.dp, Color(0xFF2E323B), RoundedCornerShape(12.dp))
+                .clickable(enabled = false) {}
+                .padding(20.dp)
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("⎚", color = Color(0xFF1DB954), fontSize = 16.sp)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "CONNECT TO A DEVICE",
+                            style = TextStyle(
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = Color(0xFFE5A00D),
+                                letterSpacing = 1.2.sp
+                            )
+                        )
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (isScanning) {
+                            CircularProgressIndicator(
+                                color = Color(0xFF1DB954),
+                                modifier = Modifier.size(14.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text(
+                                text = "Scan",
+                                color = Color(0xFF00E5FF),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .clickable { deviceService.scanAllDevices() }
+                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                            )
+                        }
+
+                        Text(
+                            text = "✕",
+                            color = Color(0xFF888B94),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .clickable(onClick = onDismiss)
+                                .padding(4.dp)
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(14.dp))
+
+                // Current Device Hero Box
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF10281E))
+                        .border(1.dp, Color(0xFF1DB954).copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .padding(12.dp)
+                ) {
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                // Animated Equalizer LED
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .background(Color(0xFF1DB954), CircleShape)
+                                        .border(1.dp, Color(0xFF69F0AE), CircleShape)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = "Current Device",
+                                    color = Color(0xFF1DB954),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.8.sp,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                            Text(
+                                text = currentDevice.type.label,
+                                color = Color(0xFF80E8A8),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        Spacer(Modifier.height(6.dp))
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(currentDevice.type.icon, fontSize = 20.sp)
+                            Spacer(Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = currentDevice.name,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                                Text(
+                                    text = currentDevice.description.ifBlank { "Tapeman Audio Engine" },
+                                    color = Color(0xFFA0D4BA),
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.height(10.dp))
+
+                        // Device Volume Slider
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("🔈", fontSize = 12.sp)
+                            Spacer(Modifier.width(6.dp))
+                            Slider(
+                                value = sliderVol,
+                                onValueChange = { sliderVol = it },
+                                colors = SliderDefaults.colors(
+                                    thumbColor = Color(0xFF1DB954),
+                                    activeTrackColor = Color(0xFF1DB954),
+                                    inactiveTrackColor = Color(0xFF274D38)
+                                ),
+                                modifier = Modifier.weight(1f)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text("🔊", fontSize = 12.sp)
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(14.dp))
+
+                // Select Another Device Section
+                Text(
+                    text = "SELECT A NEARBY DEVICE",
+                    style = TextStyle(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF888B94),
+                        letterSpacing = 1.sp
+                    )
+                )
+
+                Spacer(Modifier.height(8.dp))
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    val otherDevices = availableDevices.filter { it.id != currentDevice.id }
+                    if (otherDevices.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 24.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (isScanning) "Searching for Google Cast & Bluetooth devices..." else "No other devices detected on this network.",
+                                    color = Color(0xFF70747E),
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                    } else {
+                        items(otherDevices, key = { it.id }) { dev ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Color(0xFF1B1D23))
+                                    .border(1.dp, Color(0xFF282B34), RoundedCornerShape(6.dp))
+                                    .clickable {
+                                        deviceService.selectDevice(dev)
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(dev.type.icon, fontSize = 16.sp)
+                                    Spacer(Modifier.width(10.dp))
+                                    Column {
+                                        Text(
+                                            text = dev.name,
+                                            color = Color.White,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Text(
+                                            text = dev.model ?: dev.type.label,
+                                            color = Color(0xFF70747E),
+                                            fontSize = 10.sp
+                                        )
+                                    }
+                                }
+
+                                if (dev.isConnecting) {
+                                    CircularProgressIndicator(
+                                        color = Color(0xFFE5A00D),
+                                        modifier = Modifier.size(14.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Text(
+                                        text = "Connect",
+                                        color = Color(0xFFE5A00D),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(14.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Button(
+                        onClick = onDismiss,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF282B33)),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text("Close", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Two-pane desktop Plex Music browser with Home, Playlists, Sonic DJ, and multi-library switching.
  */
 @Composable
 fun PlexMusicBrowser(
     client: DesktopPlexClient,
     currentConfig: PlexSavedConfig?,
+    isSonicDjActive: Boolean = false,
+    onToggleSonicDj: () -> Unit = {},
     onSwitchLibrary: (sectionKey: String, name: String) -> Unit,
     onTrackSelected: (LocalTrack, List<LocalTrack>, PlexAlbum) -> Unit,
+    onPlayAlbumDirectly: (PlexAlbum) -> Unit = {},
     onOpenConnectDialog: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var currentTab by remember { mutableStateOf(PlexBrowserTab.RECENT) }
+    var currentTab by remember { mutableStateOf(PlexBrowserTab.HOME) }
     var searchQuery by remember { mutableStateOf("") }
+
+    var homeData by remember { mutableStateOf<PlexHomeData?>(null) }
+    var playlists by remember { mutableStateOf<List<PlexAlbum>>(emptyList()) }
     var recentAlbums by remember { mutableStateOf<List<PlexAlbum>>(emptyList()) }
     var allAlbums by remember { mutableStateOf<List<PlexAlbum>>(emptyList()) }
     var artists by remember { mutableStateOf<List<PlexArtist>>(emptyList()) }
+
     var selectedAlbum by remember { mutableStateOf<PlexAlbum?>(null) }
     var albumTracks by remember { mutableStateOf<List<LocalTrack>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
@@ -540,7 +883,6 @@ fun PlexMusicBrowser(
     var availableLibraries by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
 
     val scope = rememberCoroutineScope()
-
     val isConfigured = currentConfig != null && currentConfig.serverUrl.isNotBlank() && currentConfig.serverToken.isNotBlank()
 
     fun loadCurrentTab() {
@@ -548,17 +890,30 @@ fun PlexMusicBrowser(
         scope.launch {
             loading = true
             try {
-                // Ensure client credentials match config before loading
                 currentConfig?.let {
                     client.serverUrl = it.serverUrl
                     client.token = it.serverToken
                     it.librarySectionId?.let { sec -> client.sectionId = sec }
                 }
                 when (currentTab) {
-                    PlexBrowserTab.RECENT -> recentAlbums = client.fetchRecentAlbums()
-                    PlexBrowserTab.ALBUMS -> allAlbums = client.fetchAllAlbums(searchQuery)
-                    PlexBrowserTab.ARTISTS -> artists = client.fetchArtists()
-                    PlexBrowserTab.SEARCH -> allAlbums = client.fetchAllAlbums(searchQuery)
+                    PlexBrowserTab.HOME -> {
+                        homeData = client.fetchHomeData()
+                    }
+                    PlexBrowserTab.PLAYLISTS -> {
+                        playlists = client.fetchPlaylists(searchQuery)
+                    }
+                    PlexBrowserTab.RECENT -> {
+                        recentAlbums = client.fetchRecentAlbums()
+                    }
+                    PlexBrowserTab.ALBUMS -> {
+                        allAlbums = client.fetchAllAlbums(searchQuery)
+                    }
+                    PlexBrowserTab.ARTISTS -> {
+                        artists = client.fetchArtists()
+                    }
+                    PlexBrowserTab.SEARCH -> {
+                        allAlbums = client.fetchAllAlbums(searchQuery)
+                    }
                 }
             } finally {
                 loading = false
@@ -566,7 +921,6 @@ fun PlexMusicBrowser(
         }
     }
 
-    // Refresh libraries and tab content when configuration or section changes
     LaunchedEffect(currentTab, currentConfig?.serverUrl, currentConfig?.serverToken, currentConfig?.librarySectionId) {
         if (isConfigured) {
             currentConfig?.let {
@@ -603,7 +957,7 @@ fun PlexMusicBrowser(
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = "Sign in to Plex to stream your albums & artists",
+                    text = "Sign in to Plex to stream your albums, playlists & Sonic DJ",
                     color = Color(0xFF888B94),
                     fontSize = 12.sp
                 )
@@ -617,7 +971,7 @@ fun PlexMusicBrowser(
                 }
             }
         } else if (selectedAlbum != null) {
-            // Album Detail / Tracklist View
+            // Album or Playlist Tracklist View
             Column(modifier = Modifier.fillMaxSize()) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -651,7 +1005,7 @@ fun PlexMusicBrowser(
                             maxLines = 1
                         )
                         Text(
-                            text = "${selectedAlbum?.artist ?: ""} · ${selectedAlbum?.year ?: ""}",
+                            text = if (selectedAlbum?.isPlaylist == true) "Playlist · ${selectedAlbum?.trackCount ?: 0} tracks" else "${selectedAlbum?.artist ?: ""} · ${selectedAlbum?.year ?: ""}",
                             color = Color(0xFFA0A4AE),
                             fontSize = 11.sp,
                             maxLines = 1
@@ -725,9 +1079,9 @@ fun PlexMusicBrowser(
                 }
             }
         } else {
-            // Main Library View (Library Switcher + Tabs + Albums/Artists)
+            // Main Browser View
             Column(modifier = Modifier.fillMaxSize()) {
-                // Top Library Switcher Header (if multiple libraries exist)
+                // Top Library Switcher Header
                 if (availableLibraries.size > 1) {
                     Row(
                         modifier = Modifier
@@ -762,7 +1116,7 @@ fun PlexMusicBrowser(
                                             onSwitchLibrary(secId, secName)
                                         }
                                         .padding(horizontal = 8.dp, vertical = 3.dp)
-                                    ) {
+                                ) {
                                     Text(
                                         text = secName,
                                         color = if (isSelected) Color.Black else Color(0xFFDFDFE5),
@@ -775,7 +1129,7 @@ fun PlexMusicBrowser(
                     }
                 }
 
-                // Section Tabs: Recent / Albums / Artists / Search
+                // Section Tabs: Home / Playlists / Recent / Albums / Artists / Search
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -795,7 +1149,7 @@ fun PlexMusicBrowser(
                                 .clickable {
                                     currentTab = tab
                                 }
-                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                                .padding(horizontal = 9.dp, vertical = 5.dp)
                         ) {
                             Text(
                                 text = tab.title,
@@ -843,7 +1197,268 @@ fun PlexMusicBrowser(
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = Color(0xFFE5A00D), modifier = Modifier.size(30.dp))
                     }
+                } else if (currentTab == PlexBrowserTab.HOME) {
+                    // ==========================================
+                    // HOME VIEW (Sonic DJ + Loved Tracks + Recents + Hubs)
+                    // ==========================================
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        contentPadding = PaddingValues(bottom = 12.dp)
+                    ) {
+                        // 1. Hero DJ Booth: Sonic DJ Card + Loved Tracks Card
+                        item(key = "home_dj_booth") {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                // Sonic DJ Hero Card
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isSonicDjActive) Color(0xFF003840) else Color(0xFF191C22))
+                                        .border(
+                                            1.dp,
+                                            if (isSonicDjActive) Color(0xFF00E5FF) else Color(0xFF282C36),
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .clickable(onClick = onToggleSonicDj)
+                                        .padding(10.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("🎧", fontSize = 13.sp)
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(
+                                            text = if (isSonicDjActive) "SONIC DJ: ON" else "SONIC DJ: OFF",
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isSonicDjActive) Color(0xFF00E5FF) else Color.White,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                    Spacer(Modifier.height(3.dp))
+                                    Text(
+                                        text = if (isSonicDjActive) "Continuous Flow Active" else "Acoustic DJ · Tap to Start",
+                                        fontSize = 10.sp,
+                                        color = if (isSonicDjActive) Color(0xFF80F2FF) else Color(0xFF888B94),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+
+                                // Loved Tracks Hero Card
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0xFF241E15))
+                                        .border(1.dp, Color(0xFFE5A00D).copy(alpha = 0.45f), RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            val favAlbum = PlexAlbum(
+                                                id = DesktopPlexClient.SPECIAL_FAVORITES_ID,
+                                                title = "★ Loved Tracks",
+                                                artist = "Plex Favorites",
+                                                isPlaylist = true
+                                            )
+                                            selectedAlbum = favAlbum
+                                            scope.launch {
+                                                loading = true
+                                                albumTracks = client.fetchFavorites()
+                                                loading = false
+                                            }
+                                        }
+                                        .padding(10.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("★", color = Color(0xFFE5A00D), fontSize = 13.sp)
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(
+                                            text = "LOVED TRACKS",
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFE5A00D),
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                    Spacer(Modifier.height(3.dp))
+                                    Text(
+                                        text = "Your Favorited Songs",
+                                        fontSize = 10.sp,
+                                        color = Color(0xFFB0B4BE),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+
+                        // 2. Jump Back In (Recently Played)
+                        val recents = homeData?.recentlyPlayed ?: emptyList()
+                        if (recents.isNotEmpty()) {
+                            item(key = "home_recents") {
+                                Column {
+                                    HomeSectionHeader("JUMP BACK IN", "⚡")
+                                    Spacer(Modifier.height(8.dp))
+                                    LazyRow(
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        items(recents, key = { "recent_${it.id}" }) { album ->
+                                            HomeAlbumCard(
+                                                client = client,
+                                                album = album,
+                                                onClick = {
+                                                    selectedAlbum = album
+                                                    scope.launch {
+                                                        loading = true
+                                                        albumTracks = client.fetchTracks(album)
+                                                        loading = false
+                                                    }
+                                                },
+                                                onPlayDirectly = {
+                                                    onPlayAlbumDirectly(album)
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // 3. Fans Also Like (Similar Artists)
+                        val similar = homeData?.similarArtists ?: emptyList()
+                        if (similar.isNotEmpty()) {
+                            item(key = "home_similar_artists") {
+                                Column {
+                                    HomeSectionHeader(
+                                        title = "FANS ALSO LIKE (${homeData?.recentArtist?.name?.uppercase() ?: "RECENT ARTIST"})",
+                                        icon = "✨"
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                    LazyRow(
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        items(similar, key = { "sim_${it.id}" }) { artist ->
+                                            HomeArtistAvatarCard(
+                                                client = client,
+                                                artist = artist,
+                                                onOpen = {
+                                                    searchQuery = artist.name
+                                                    currentTab = PlexBrowserTab.ALBUMS
+                                                    loadCurrentTab()
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // 4. Dynamic Hubs
+                        val hubs = homeData?.hubs ?: emptyList()
+                        hubs.forEach { hub ->
+                            item(key = "hub_${hub.hubIdentifier}") {
+                                Column {
+                                    HomeSectionHeader(title = hub.title.uppercase(), icon = "💿")
+                                    Spacer(Modifier.height(8.dp))
+                                    LazyRow(
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        items(hub.items, key = { "hub_${hub.hubIdentifier}_${it.id}" }) { album ->
+                                            HomeAlbumCard(
+                                                client = client,
+                                                album = album,
+                                                onClick = {
+                                                    selectedAlbum = album
+                                                    scope.launch {
+                                                        loading = true
+                                                        albumTracks = client.fetchTracks(album)
+                                                        loading = false
+                                                    }
+                                                },
+                                                onPlayDirectly = {
+                                                    onPlayAlbumDirectly(album)
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else if (currentTab == PlexBrowserTab.PLAYLISTS) {
+                    // ==========================================
+                    // PLAYLISTS VIEW
+                    // ==========================================
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(minSize = 125.dp),
+                        contentPadding = PaddingValues(bottom = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        items(playlists) { playlist ->
+                            val isLoved = playlist.id == DesktopPlexClient.SPECIAL_FAVORITES_ID
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isLoved) Color(0xFF241E15) else Color(0xFF181A20))
+                                    .border(
+                                        1.dp,
+                                        if (isLoved) Color(0xFFE5A00D).copy(alpha = 0.6f) else Color(0xFF282B34),
+                                        RoundedCornerShape(8.dp)
+                                    )
+                                    .clickable {
+                                        selectedAlbum = playlist
+                                        scope.launch {
+                                            loading = true
+                                            albumTracks = client.fetchTracks(playlist)
+                                            loading = false
+                                        }
+                                    }
+                                    .padding(8.dp)
+                            ) {
+                                Column {
+                                    if (isLoved) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(115.dp)
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(Color(0xFF33291B)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text("★", color = Color(0xFFE5A00D), fontSize = 38.sp)
+                                        }
+                                    } else {
+                                        AlbumThumbnail(
+                                            client = client,
+                                            url = playlist.coverUrl,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(115.dp)
+                                        )
+                                    }
+                                    Spacer(Modifier.height(6.dp))
+                                    Text(
+                                        text = playlist.title,
+                                        color = if (isLoved) Color(0xFFE5A00D) else Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        text = playlist.artist,
+                                        color = Color(0xFF888B94),
+                                        fontSize = 10.sp,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                    }
                 } else if (currentTab == PlexBrowserTab.ARTISTS) {
+                    // ==========================================
+                    // ARTISTS VIEW
+                    // ==========================================
                     LazyVerticalGrid(
                         columns = GridCells.Adaptive(minSize = 105.dp),
                         contentPadding = PaddingValues(bottom = 8.dp),
@@ -886,6 +1501,9 @@ fun PlexMusicBrowser(
                         }
                     }
                 } else {
+                    // ==========================================
+                    // ALBUMS & RECENT VIEW
+                    // ==========================================
                     val itemsToDisplay = if (currentTab == PlexBrowserTab.RECENT) recentAlbums else allAlbums
 
                     LazyVerticalGrid(
@@ -940,6 +1558,110 @@ fun PlexMusicBrowser(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun HomeSectionHeader(title: String, icon: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(icon, fontSize = 11.sp, color = Color(0xFFE5A00D))
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = title,
+            style = TextStyle(
+                color = Color.White,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace,
+                letterSpacing = 1.sp
+            )
+        )
+    }
+}
+
+@Composable
+private fun HomeAlbumCard(
+    client: DesktopPlexClient,
+    album: PlexAlbum,
+    onClick: () -> Unit,
+    onPlayDirectly: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .width(108.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(bottom = 4.dp)
+    ) {
+        Box(modifier = Modifier.size(108.dp)) {
+            AlbumThumbnail(
+                client = client,
+                url = album.coverUrl,
+                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(8.dp))
+            )
+            // Play badge
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(5.dp)
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xCC000000))
+                    .border(1.dp, Color(0xFFE5A00D).copy(alpha = 0.5f), CircleShape)
+                    .clickable(onClick = onPlayDirectly),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("▶", color = Color(0xFFE5A00D), fontSize = 10.sp)
+            }
+        }
+        Spacer(Modifier.height(5.dp))
+        Text(
+            text = album.title,
+            color = Color.White,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = album.artist,
+            color = Color(0xFF888B94),
+            fontSize = 10.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun HomeArtistAvatarCard(
+    client: DesktopPlexClient,
+    artist: PlexArtist,
+    onOpen: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .width(84.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onOpen)
+            .padding(bottom = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        AlbumThumbnail(
+            client = client,
+            url = artist.thumbUrl,
+            shape = CircleShape,
+            modifier = Modifier.size(68.dp)
+        )
+        Spacer(Modifier.height(5.dp))
+        Text(
+            text = artist.name,
+            color = Color.White,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
