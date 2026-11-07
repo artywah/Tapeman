@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -73,7 +74,8 @@ fun main() = application {
     val authService = remember { PlexAuthService() }
     val plexClient = remember { DesktopPlexClient() }
 
-    val windowState = rememberWindowState(width = 980.dp, height = 620.dp)
+    // Default window opens at the ideal 2:1 landscape ratio (1200dp x 590dp) matching user screenshot
+    val windowState = rememberWindowState(width = 1200.dp, height = 590.dp)
     var isMiniPlayer by remember { mutableStateOf(false) }
 
     Window(
@@ -97,9 +99,11 @@ fun main() = application {
                 onToggleMiniPlayer = {
                     isMiniPlayer = !isMiniPlayer
                     if (isMiniPlayer) {
-                        windowState.size = DpSize(540.dp, 390.dp)
+                        // Snug mini player matching screenshot 2026-11-07 at 10.54.00 am
+                        windowState.size = DpSize(470.dp, 390.dp)
                     } else {
-                        windowState.size = DpSize(980.dp, 620.dp)
+                        // Ideal full view matching screenshot 2026-11-07 at 10.52.39 am
+                        windowState.size = DpSize(1200.dp, 590.dp)
                     }
                 }
             )
@@ -357,13 +361,24 @@ fun TapemanDesktopApp(
 
                     Spacer(Modifier.height(4.dp))
 
-                    // Center: The Walkman Deck, scaled strictly to HEIGHT so it NEVER cuts off the bottom or screws
-                    Box(
+                    // Center: The Walkman Deck, with smart fitting so it fits snugly and NEVER clips
+                    BoxWithConstraints(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth(),
                         contentAlignment = Alignment.Center
                     ) {
+                        val targetAspect = 1.52f
+                        val fittedModifier = if (maxWidth / maxHeight > targetAspect) {
+                            Modifier
+                                .fillMaxHeight()
+                                .aspectRatio(targetAspect, matchHeightConstraintsFirst = true)
+                        } else {
+                            Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(targetAspect, matchHeightConstraintsFirst = false)
+                        }
+
                         WalkmanPlayerUnit(
                             ui = ui,
                             anim = anim,
@@ -437,9 +452,7 @@ fun TapemanDesktopApp(
                                 mechSounds.keyDown()
                                 anim.reels.resetCounter()
                             },
-                            modifier = Modifier
-                                .fillMaxHeight()
-                                .aspectRatio(1.52f, matchHeightConstraintsFirst = true),
+                            modifier = fittedModifier,
                             forcePortrait = false,
                         )
                     }
@@ -450,7 +463,7 @@ fun TapemanDesktopApp(
                 // ==========================================
                 Column(
                     modifier = Modifier
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
                         .fillMaxSize(),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
@@ -567,7 +580,7 @@ fun TapemanDesktopApp(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         // Left Pane: Plex Music Browser (retractable)
@@ -589,23 +602,34 @@ fun TapemanDesktopApp(
                                 },
                                 onOpenConnectDialog = { showPlexDialog = true },
                                 modifier = Modifier
-                                    .weight(1f)
+                                    .weight(1.05f)
                                     .fillMaxHeight()
                             )
                         }
 
                         // Right Pane: Authentic Sony Walkman WM-RX707 Hardware Player Unit
                         Column(
-                            modifier = if (showLibraryBrowser) Modifier.weight(1.15f).fillMaxHeight() else Modifier.fillMaxSize(),
+                            modifier = if (showLibraryBrowser) Modifier.weight(0.95f).fillMaxHeight() else Modifier.fillMaxSize(),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
-                            Box(
+                            BoxWithConstraints(
                                 modifier = Modifier
                                     .weight(1f)
                                     .fillMaxWidth(),
                                 contentAlignment = Alignment.Center
                             ) {
+                                val targetAspect = 1.52f
+                                val fittedModifier = if (maxWidth / maxHeight > targetAspect) {
+                                    Modifier
+                                        .fillMaxHeight()
+                                        .aspectRatio(targetAspect, matchHeightConstraintsFirst = true)
+                                } else {
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .aspectRatio(targetAspect, matchHeightConstraintsFirst = false)
+                                }
+
                                 WalkmanPlayerUnit(
                                     ui = ui,
                                     anim = anim,
@@ -679,14 +703,12 @@ fun TapemanDesktopApp(
                                         mechSounds.keyDown()
                                         anim.reels.resetCounter()
                                     },
-                                    modifier = Modifier
-                                        .fillMaxHeight()
-                                        .aspectRatio(1.52f, matchHeightConstraintsFirst = true),
+                                    modifier = fittedModifier,
                                     forcePortrait = false,
                                 )
                             }
 
-                            Spacer(Modifier.height(10.dp))
+                            Spacer(Modifier.height(8.dp))
 
                             // Dedicated Cassette Tape Archive Selector Tray
                             Row(
