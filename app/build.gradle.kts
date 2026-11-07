@@ -19,8 +19,8 @@ val signingProps = Properties().apply {
 }
 
 // The app version; versionCode must go up by one with every release.
-val appVersionName = "0.4.0"
-val appVersionCode = 15
+val appVersionName = "0.5.0"
+val appVersionCode = 16
 
 base {
     archivesName = "Tapeman-$appVersionName"
@@ -73,7 +73,6 @@ android {
 }
 
 dependencies {
-    implementation(project(":shared"))
     val composeBom = platform("androidx.compose:compose-bom:2026.09.00")
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")

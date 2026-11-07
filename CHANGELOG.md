@@ -2,6 +2,36 @@
 
 All notable changes to Tapeman. Versions follow [semantic versioning](https://semver.org); downloads are on the [releases page](https://github.com/artywah/Tapeman/releases).
 
+## [0.5.0] — 2026-11-07
+
+### Added
+- **Native Desktop Player (macOS / Kotlin Multiplatform + Compose Multiplatform):**
+  - **Full Dual-Pane Landscape View (1200 x 590):** Default window dimensions tuned to an ideal 2:1 aspect ratio with responsive `BoxWithConstraints` deck scaling preventing library overlap or window overflow.
+  - **Spotify-Style Mini Player Mode (470 x 390):** Compact floating player window with always-on-top support, height-constrained deck scaling eliminating bottom clipping, live track LED, and a prominent gold `[ ⤢ Open Library ]` button.
+  - **Mechanical Walkman WM-RX707 Hardware Simulation:** Full natural horizontal orientation, 3D cassette door tilt, authentic dual spool reel motion, AMS Next/Prev, 15-second Cue/Review seeking, analog volume fader, mechanical DBB / AVLS switches, Hold lock, and Tape Archive selector tray.
+  - **Full Plex Music Browser on Desktop:**
+    - **`Home` Tab:** Hero DJ Booth (Sonic DJ + Loved Tracks cards), *Jump Back In* (`⚡ JUMP BACK IN`) horizontal album carousel with direct `▶` playback, *Fans Also Like* (`✨ FANS ALSO LIKE`) artist avatars, and dynamic Plex recommendation hubs (`💿 DYNAMIC HUBS`).
+    - **`Playlists` Tab:** Pinned gold-star `★ Loved Tracks` card plus all user audio playlists from Plex with artwork and track counts.
+    - **`Recent` & `Albums` Tabs:** Discography grids with live search filtering.
+    - **`Artists` Tab:** Circular photo avatars with deep-link filtering.
+    - **Multi-Library Switcher:** Seamless switching between Music and Audiobooks sections with live section discovery.
+- **Sonic DJ Continuous Acoustic Flow on Desktop:**
+  - Dedicated interactive Hero DJ Booth card with glowing turquoise theme (`#00E5FF`).
+  - Real-time queue monitor automatically queries Plex's `/library/metadata/{id}/nearest` neural-network acoustic embedding endpoint (with smart artist/genre fallback) to continuously inject fresh tracks when approaching the queue end.
+  - Top bar and mini player quick-toggle badges with live ON/OFF states.
+- **Spotify Connect-Style Device Picker (`⎚ Devices`):**
+  - **`DeviceDiscoveryService`:** Multi-protocol background scanner for local LAN and system output targets.
+  - **Google Cast & Nest Hub Integration:** Live mDNS (`_googlecast._tcp.local.`) discovery for Google TV Streamer, Google Nest Hub, Nest Mini, and Google Cast speaker groups.
+  - **AirPlay Integration:** Live mDNS (`_airplay._tcp.local.`) discovery for Apple AirPlay devices.
+  - **CoreAudio & Bluetooth:** Automatic detection of built-in Mac speakers, connected Bluetooth headphones/speakers, and external DACs via Java Sound / CoreAudio.
+  - **"CONNECT TO A DEVICE" Modal Sheet:** Styled after Spotify Connect with active listening status, live equalizer animation, remote device volume slider, and one-click target switching.
+  - Accessible from both the header bar `⎚ Devices` button and the Settings dialog.
+- **Branding & Visual Refinements:**
+  - Removed remaining Sony / Walkman logos and replaced with authentic retro **"ARTY · TAPEMAN"** typography across both Android and Desktop.
+  - Cassette shells `UX-Pro 90` and `HF 90` silkscreen text updated to **`TAPEMAN`**.
+  - `REC · SHELL` switch sub-label updated to display **`TAPEMAN`**.
+  - Cleaned up top desktop window header to avoid redundant silkscreen logos.
+
 ## [0.4.0] — 2026-11-06
 
 ### Added
