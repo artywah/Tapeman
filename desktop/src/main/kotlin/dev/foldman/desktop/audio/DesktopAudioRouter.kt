@@ -95,7 +95,7 @@ class DesktopAudioRouter(
         castBackend.setTrackMetadata(title, artist, album, coverUrl)
     }
 
-    suspend fun switchDevice(device: AudioOutputDevice) {
+    suspend fun switchDevice(device: AudioOutputDevice): Boolean {
         val wasPlaying = _isPlaying.value
         val pos = _currentPositionMs.value
         val url = lastUrl
@@ -108,6 +108,9 @@ class DesktopAudioRouter(
                 _activeTarget.value = DeviceType.GOOGLE_CAST
                 localBackend.stop()
                 castBackend.setVolume(_volume.value)
+                if (!url.isNullOrBlank()) {
+                    castBackend.setLastUrl(url)
+                }
                 if (wasPlaying && !url.isNullOrBlank()) {
                     delay(300)
                     castBackend.play(url)
@@ -115,9 +118,17 @@ class DesktopAudioRouter(
                         delay(600)
                         castBackend.seekTo(pos)
                     }
+                } else if (!url.isNullOrBlank()) {
+                    delay(300)
+                    castBackend.loadReady(url)
+                } else {
+                    delay(300)
+                    castBackend.loadStandbyCard()
                 }
+                return true
             } else {
                 println("[DesktopAudioRouter] Failed to connect to ${device.name}, remaining on ${_activeTarget.value}")
+                return false
             }
         } else {
             // Revert to Mac Built-in or Bluetooth
@@ -130,6 +141,7 @@ class DesktopAudioRouter(
                     localBackend.seekTo(pos)
                 }
             }
+            return true
         }
     }
 

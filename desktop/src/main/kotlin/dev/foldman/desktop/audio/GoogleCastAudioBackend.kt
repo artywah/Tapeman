@@ -37,6 +37,10 @@ class GoogleCastAudioBackend : AudioBackend {
     private var activeDevice: AudioOutputDevice? = null
     private var lastUrl: String? = null
 
+    fun setLastUrl(url: String) {
+        lastUrl = url
+    }
+
     // Track metadata for the receiver display
     var currentTrackTitle: String = "Tapeman Audio"
     var currentArtist: String = ""
@@ -80,6 +84,61 @@ class GoogleCastAudioBackend : AudioBackend {
         return null
     }
 
+    fun detectMimeType(url: String): String = when {
+        url.contains(".flac", ignoreCase = true) -> "audio/flac"
+        url.contains(".m4a", ignoreCase = true) || url.contains(".aac", ignoreCase = true) -> "audio/mp4"
+        url.contains(".ogg", ignoreCase = true) -> "audio/ogg"
+        url.contains(".wav", ignoreCase = true) -> "audio/wav"
+        else -> "audio/mpeg"
+    }
+
+    private suspend fun ensureAppReady(cast: ChromeCast): Boolean {
+        for (i in 1..8) {
+            try {
+                if (cast.isAppRunning("CC1AD845")) return true
+            } catch (_: Throwable) {}
+            if (i == 1) {
+                runCatching { cast.launchApp("CC1AD845") }
+            }
+            delay(400)
+        }
+        return false
+    }
+
+    suspend fun loadStandbyCard() {
+        try {
+            val cast = client ?: return
+            ensureAppReady(cast)
+            val title = "Tapeman · Connected"
+            val thumb = "https://raw.githubusercontent.com/artywah/Tapeman/main/art/icon.png"
+            val silenceUrl = "https://raw.githubusercontent.com/artywah/Tapeman/main/art/silence.mp3"
+            println("[GoogleCast] Displaying standby card on ${activeDevice?.name ?: "Cast Device"}")
+            cast.load(title, thumb, silenceUrl, "audio/mpeg")
+            delay(300)
+            cast.pause()
+        } catch (t: Throwable) {
+            println("[GoogleCast] Standby card note: ${t.message}")
+        }
+    }
+
+    suspend fun loadReady(url: String) {
+        lastUrl = url
+        try {
+            val cast = client ?: return
+            ensureAppReady(cast)
+            val title = if (currentArtist.isNotBlank()) "$currentTrackTitle — $currentArtist" else currentTrackTitle
+            val thumb = currentCoverUrl ?: "https://raw.githubusercontent.com/artywah/Tapeman/main/art/icon.png"
+            val contentType = detectMimeType(url)
+            println("[GoogleCast] Loading ready track: $title")
+            cast.load(title, thumb, url, contentType)
+            delay(300)
+            cast.pause()
+            _isPlaying.value = false
+        } catch (t: Throwable) {
+            println("[GoogleCast] loadReady note: ${t.message}")
+        }
+    }
+
     suspend fun connectToDevice(device: AudioOutputDevice): Boolean = withContext(Dispatchers.IO) {
         val rawAddr = device.address
         if (rawAddr.isNullOrBlank()) {
@@ -95,17 +154,11 @@ class GoogleCastAudioBackend : AudioBackend {
             println("[GoogleCast] Connecting to ${device.name} at $addr:${device.port}...")
             val cast = ChromeCast(addr, device.port)
             cast.connect()
+            cast.setAutoReconnect(true)
 
-            // Launch Default Media Receiver app on screen
+            // Ensure receiver app is launched and active on screen
             println("[GoogleCast] Launching Default Media Receiver (CC1AD845)...")
-            try {
-                if (!cast.isAppRunning("CC1AD845")) {
-                    cast.launchApp("CC1AD845")
-                }
-            } catch (e: Throwable) {
-                // Try launching anyway
-                cast.launchApp("CC1AD845")
-            }
+            ensureAppReady(cast)
 
             client = cast
             activeDevice = device
@@ -172,22 +225,13 @@ class GoogleCastAudioBackend : AudioBackend {
                     _isPlaying.value = false
                     return@launch
                 }
+                ensureAppReady(cast)
+
                 val title = if (currentArtist.isNotBlank()) "$currentTrackTitle — $currentArtist" else currentTrackTitle
                 val thumb = currentCoverUrl ?: "https://raw.githubusercontent.com/artywah/Tapeman/main/art/icon.png"
-                val contentType = when {
-                    url.contains(".flac", ignoreCase = true) -> "audio/flac"
-                    url.contains(".m4a", ignoreCase = true) || url.contains(".aac", ignoreCase = true) -> "audio/mp4"
-                    url.contains(".ogg", ignoreCase = true) -> "audio/ogg"
-                    url.contains(".wav", ignoreCase = true) -> "audio/wav"
-                    else -> "audio/mp3"
-                }
+                val contentType = detectMimeType(url)
 
                 println("[GoogleCast] Loading media: $title, URL: $url")
-                if (!cast.isAppRunning("CC1AD845")) {
-                    cast.launchApp("CC1AD845")
-                    delay(500)
-                }
-
                 cast.load(
                     title,
                     thumb,

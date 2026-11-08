@@ -582,6 +582,8 @@ fun ConnectToDeviceDialog(
     val currentDevice by deviceService.currentDevice.collectAsState()
     val availableDevices by deviceService.availableDevices.collectAsState()
     val isScanning by deviceService.isScanning.collectAsState()
+    val connectingDeviceId by deviceService.connectingDeviceId.collectAsState()
+    val connectionStatus by deviceService.connectionStatus.collectAsState()
 
     var sliderVol by remember { mutableFloatStateOf(1f) }
 
@@ -654,7 +656,63 @@ fun ConnectToDeviceDialog(
                     }
                 }
 
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(10.dp))
+
+                // Live Connection Status Banner (Connecting / Connected / Error)
+                if (!connectionStatus.isNullOrBlank()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(
+                                when {
+                                    connectingDeviceId != null -> Color(0xFF2A2210)
+                                    connectionStatus?.contains("Connected", ignoreCase = true) == true -> Color(0xFF10281E)
+                                    else -> Color(0xFF2D1616)
+                                }
+                            )
+                            .border(
+                                1.dp,
+                                when {
+                                    connectingDeviceId != null -> Color(0xFFE5A00D).copy(alpha = 0.5f)
+                                    connectionStatus?.contains("Connected", ignoreCase = true) == true -> Color(0xFF1DB954).copy(alpha = 0.5f)
+                                    else -> Color(0xFFE57373).copy(alpha = 0.5f)
+                                },
+                                RoundedCornerShape(6.dp)
+                            )
+                            .padding(horizontal = 10.dp, vertical = 7.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (connectingDeviceId != null) {
+                                CircularProgressIndicator(
+                                    color = Color(0xFFE5A00D),
+                                    modifier = Modifier.size(12.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else if (connectionStatus?.contains("Connected", ignoreCase = true) == true) {
+                                Text("✓", color = Color(0xFF1DB954), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            } else {
+                                Text("⚠", color = Color(0xFFE57373), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Text(
+                                text = connectionStatus ?: "",
+                                color = when {
+                                    connectingDeviceId != null -> Color(0xFFFFD54F)
+                                    connectionStatus?.contains("Connected", ignoreCase = true) == true -> Color(0xFF80E8A8)
+                                    else -> Color(0xFFEF9A9A)
+                                },
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                } else {
+                    Spacer(Modifier.height(4.dp))
+                }
 
                 // Current Device Hero Box
                 Box(
@@ -788,7 +846,7 @@ fun ConnectToDeviceDialog(
                                     .clip(RoundedCornerShape(6.dp))
                                     .background(Color(0xFF1B1D23))
                                     .border(1.dp, Color(0xFF282B34), RoundedCornerShape(6.dp))
-                                    .clickable {
+                                    .clickable(enabled = connectingDeviceId == null) {
                                         deviceService.selectDevice(dev)
                                     }
                                     .padding(horizontal = 12.dp, vertical = 9.dp),
@@ -806,23 +864,34 @@ fun ConnectToDeviceDialog(
                                             fontWeight = FontWeight.SemiBold
                                         )
                                         Text(
-                                            text = dev.model ?: dev.type.label,
+                                            text = if (dev.address != null) "${dev.model ?: dev.type.label} · ${dev.address}" else (dev.model ?: dev.type.label),
                                             color = Color(0xFF70747E),
                                             fontSize = 10.sp
                                         )
                                     }
                                 }
 
-                                if (dev.isConnecting) {
-                                    CircularProgressIndicator(
-                                        color = Color(0xFFE5A00D),
-                                        modifier = Modifier.size(14.dp),
-                                        strokeWidth = 2.dp
-                                    )
+                                if (dev.isConnecting || connectingDeviceId == dev.id) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        CircularProgressIndicator(
+                                            color = Color(0xFFE5A00D),
+                                            modifier = Modifier.size(13.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                        Text(
+                                            text = "Connecting...",
+                                            color = Color(0xFFE5A00D),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
                                 } else {
                                     Text(
                                         text = "Connect",
-                                        color = Color(0xFFE5A00D),
+                                        color = if (connectingDeviceId != null) Color(0xFF555760) else Color(0xFFE5A00D),
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold
                                     )

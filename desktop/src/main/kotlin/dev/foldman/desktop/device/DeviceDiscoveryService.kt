@@ -59,6 +59,12 @@ class DeviceDiscoveryService {
     private val _isScanning = MutableStateFlow(false)
     val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
 
+    private val _connectingDeviceId = MutableStateFlow<String?>(null)
+    val connectingDeviceId: StateFlow<String?> = _connectingDeviceId.asStateFlow()
+
+    private val _connectionStatus = MutableStateFlow<String?>(null)
+    val connectionStatus: StateFlow<String?> = _connectionStatus.asStateFlow()
+
     private val deviceCache = ConcurrentHashMap<String, AudioOutputDevice>()
 
     init {
@@ -375,8 +381,12 @@ class DeviceDiscoveryService {
 
     private fun updateDeviceList() {
         val currId = _currentDevice.value.id
+        val connId = _connectingDeviceId.value
         val list = deviceCache.values.map { dev ->
-            dev.copy(isCurrent = dev.id == currId)
+            dev.copy(
+                isCurrent = dev.id == currId,
+                isConnecting = dev.id == connId
+            )
         }.sortedWith(
             compareBy<AudioOutputDevice> {
                 when (it.type) {
@@ -390,30 +400,48 @@ class DeviceDiscoveryService {
         _availableDevices.value = list
     }
 
-    var onDeviceSelected: (suspend (AudioOutputDevice) -> Unit)? = null
+    var onDeviceSelected: (suspend (AudioOutputDevice) -> Boolean)? = null
 
     fun selectDevice(device: AudioOutputDevice) {
+        if (_connectingDeviceId.value != null) return
         scope.launch {
-            var dev = device.copy(isCurrent = true, isConnecting = true)
-            _currentDevice.value = dev
+            _connectingDeviceId.value = device.id
+            _connectionStatus.value = "Connecting to ${device.name}..."
+
+            var dev = device.copy(isConnecting = true)
+            deviceCache[dev.id] = dev
             updateDeviceList()
 
             // If Cast address is not resolved yet, resolve it on demand
             if (dev.type == DeviceType.GOOGLE_CAST && (dev.address == null || dev.address.endsWith(".local"))) {
+                _connectionStatus.value = "Resolving IP for ${dev.name}..."
                 val rawInstance = dev.id.removePrefix("cast_")
                 resolveCastDetails(rawInstance, dev.id)
                 dev = deviceCache[dev.id] ?: dev
             }
 
-            try {
-                onDeviceSelected?.invoke(dev)
+            val addrInfo = if (!dev.address.isNullOrBlank()) " (${dev.address})" else ""
+            _connectionStatus.value = "Connecting to ${dev.name}$addrInfo..."
+
+            val success = try {
+                onDeviceSelected?.invoke(dev) ?: false
             } catch (t: Throwable) {
                 t.printStackTrace()
+                false
             }
 
-            val finalDev = dev.copy(isCurrent = true, isConnecting = false)
-            _currentDevice.value = finalDev
-            deviceCache[finalDev.id] = finalDev
+            if (success) {
+                val finalDev = dev.copy(isCurrent = true, isConnecting = false)
+                _currentDevice.value = finalDev
+                deviceCache[finalDev.id] = finalDev
+                _connectionStatus.value = "Connected to ${dev.name}"
+            } else {
+                val revertedDev = dev.copy(isCurrent = false, isConnecting = false)
+                deviceCache[revertedDev.id] = revertedDev
+                _connectionStatus.value = "Failed to connect to ${dev.name}"
+            }
+
+            _connectingDeviceId.value = null
             updateDeviceList()
         }
     }
