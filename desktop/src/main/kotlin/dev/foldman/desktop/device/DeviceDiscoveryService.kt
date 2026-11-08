@@ -200,14 +200,14 @@ class DeviceDiscoveryService {
         }
     }
 
-    private fun resolveCastDetails(instanceName: String, id: String) {
+    private suspend fun resolveCastDetails(instanceName: String, id: String): AudioOutputDevice? = kotlinx.coroutines.withContext(Dispatchers.IO) {
         runCatching {
             val pb = ProcessBuilder("dns-sd", "-L", instanceName, "_googlecast._tcp", "local")
             val proc = pb.start()
             val reader = BufferedReader(InputStreamReader(proc.inputStream))
 
             val timer = scope.launch {
-                delay(600)
+                delay(1200)
                 proc.destroyForcibly()
             }
 
@@ -261,9 +261,11 @@ class DeviceDiscoveryService {
                         _currentDevice.value = updatedDev
                     }
                     updateDeviceList()
+                    return@withContext updatedDev
                 }
             }
-        }
+            null
+        }.getOrNull()
     }
 
     private fun resolveIpv4(host: String): String? {
@@ -400,7 +402,7 @@ class DeviceDiscoveryService {
         _availableDevices.value = list
     }
 
-    var onDeviceSelected: (suspend (AudioOutputDevice) -> Boolean)? = null
+    var onDeviceSelected: (suspend (AudioOutputDevice) -> Pair<Boolean, String?>)? = null
 
     fun selectDevice(device: AudioOutputDevice) {
         if (_connectingDeviceId.value != null) return
@@ -414,23 +416,25 @@ class DeviceDiscoveryService {
 
             // If Cast address is not resolved yet, resolve it on demand
             if (dev.type == DeviceType.GOOGLE_CAST && (dev.address == null || dev.address.endsWith(".local"))) {
-                _connectionStatus.value = "Resolving IP for ${dev.name}..."
+                _connectionStatus.value = "Resolving address for ${dev.name}..."
                 val rawInstance = dev.id.removePrefix("cast_")
-                resolveCastDetails(rawInstance, dev.id)
-                dev = deviceCache[dev.id] ?: dev
+                val resolved = resolveCastDetails(rawInstance, dev.id)
+                if (resolved != null) {
+                    dev = resolved
+                }
             }
 
             val addrInfo = if (!dev.address.isNullOrBlank()) " (${dev.address})" else ""
             _connectionStatus.value = "Connecting to ${dev.name}$addrInfo..."
 
-            val success = try {
-                onDeviceSelected?.invoke(dev) ?: false
+            val result = try {
+                onDeviceSelected?.invoke(dev) ?: Pair(false, "Device router not ready")
             } catch (t: Throwable) {
                 t.printStackTrace()
-                false
+                Pair(false, t.localizedMessage ?: t.javaClass.simpleName)
             }
 
-            if (success) {
+            if (result.first) {
                 val finalDev = dev.copy(isCurrent = true, isConnecting = false)
                 _currentDevice.value = finalDev
                 deviceCache[finalDev.id] = finalDev
@@ -438,7 +442,8 @@ class DeviceDiscoveryService {
             } else {
                 val revertedDev = dev.copy(isCurrent = false, isConnecting = false)
                 deviceCache[revertedDev.id] = revertedDev
-                _connectionStatus.value = "Failed to connect to ${dev.name}"
+                val detail = result.second?.takeIf { it.isNotBlank() }
+                _connectionStatus.value = if (detail != null) "Failed to connect to ${dev.name}: $detail" else "Failed to connect to ${dev.name}"
             }
 
             _connectingDeviceId.value = null

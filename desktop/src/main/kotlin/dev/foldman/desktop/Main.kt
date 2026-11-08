@@ -157,7 +157,8 @@ fun TapemanDesktopApp(
     // Hook device selection directly to active audio router
     LaunchedEffect(deviceService, audioBackend) {
         deviceService.onDeviceSelected = { selectedDevice ->
-            audioBackend.switchDevice(selectedDevice)
+            val ok = audioBackend.switchDevice(selectedDevice)
+            Pair(ok, audioBackend.lastError)
         }
     }
 

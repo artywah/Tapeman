@@ -36,6 +36,7 @@ class GoogleCastAudioBackend : AudioBackend {
     private var pollJob: Job? = null
     private var activeDevice: AudioOutputDevice? = null
     private var lastUrl: String? = null
+    var lastErrorMessage: String? = null
 
     fun setLastUrl(url: String) {
         lastUrl = url
@@ -139,15 +140,52 @@ class GoogleCastAudioBackend : AudioBackend {
         }
     }
 
+    private fun resolveInstanceToIp(instanceName: String): String? {
+        return runCatching {
+            val pb = ProcessBuilder("dns-sd", "-L", instanceName, "_googlecast._tcp", "local")
+            val proc = pb.start()
+            val reader = java.io.BufferedReader(java.io.InputStreamReader(proc.inputStream))
+            var host: String? = null
+            val timer = java.util.Timer()
+            timer.schedule(object : java.util.TimerTask() {
+                override fun run() { proc.destroyForcibly() }
+            }, 1200)
+            try {
+                var line: String?
+                while (reader.readLine().also { line = it } != null) {
+                    val l = line ?: break
+                    if (l.contains("can be reached at")) {
+                        val m = Regex("""can be reached at ([^:]+):""").find(l)
+                        if (m != null) {
+                            host = m.groupValues[1].removeSuffix(".")
+                            break
+                        }
+                    }
+                }
+            } finally {
+                timer.cancel()
+                proc.destroyForcibly()
+            }
+            if (host != null) resolveIpv4Direct(host) else null
+        }.getOrNull()
+    }
+
     suspend fun connectToDevice(device: AudioOutputDevice): Boolean = withContext(Dispatchers.IO) {
-        val rawAddr = device.address
-        if (rawAddr.isNullOrBlank()) {
-            println("[GoogleCast] Cannot connect: device address is null for ${device.name}")
+        var addr = device.address
+        if (addr.isNullOrBlank()) {
+            val rawInstance = device.id.removePrefix("cast_")
+            println("[GoogleCast] Address was null for ${device.name}, attempting resolution for $rawInstance...")
+            addr = resolveInstanceToIp(rawInstance)
+        }
+        if (addr.isNullOrBlank()) {
+            val err = "Device address could not be resolved on local network"
+            lastErrorMessage = err
+            println("[GoogleCast] Cannot connect: $err for ${device.name}")
             return@withContext false
         }
-        val addr = if (rawAddr.endsWith(".local") || !rawAddr.matches(Regex("""^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$"""))) {
-            resolveIpv4Direct(rawAddr) ?: rawAddr
-        } else rawAddr
+        addr = if (addr.endsWith(".local") || !addr.matches(Regex("""^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$"""))) {
+            resolveIpv4Direct(addr) ?: addr
+        } else addr
 
         try {
             disconnect()
@@ -156,18 +194,25 @@ class GoogleCastAudioBackend : AudioBackend {
             cast.connect()
             cast.setAutoReconnect(true)
 
-            // Ensure receiver app is launched and active on screen
+            // Launch Default Media Receiver app directly (matching verified working protocol)
             println("[GoogleCast] Launching Default Media Receiver (CC1AD845)...")
-            ensureAppReady(cast)
+            val running = runCatching { cast.status?.runningApp }.getOrNull()
+            if (running == null || running.id != "CC1AD845") {
+                cast.launchApp("CC1AD845")
+                delay(800)
+            }
 
             client = cast
             activeDevice = device
             startPolling()
             runCatching { cast.setVolume(_volume.value) }
             println("[GoogleCast] Connected successfully to ${device.name}!")
+            lastErrorMessage = null
             true
         } catch (t: Throwable) {
-            println("[GoogleCast] Connection failed: ${t.message}")
+            val msg = t.localizedMessage ?: t.javaClass.simpleName
+            lastErrorMessage = msg
+            println("[GoogleCast] Connection failed: $msg")
             t.printStackTrace()
             false
         }

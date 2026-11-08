@@ -95,6 +95,8 @@ class DesktopAudioRouter(
         castBackend.setTrackMetadata(title, artist, album, coverUrl)
     }
 
+    var lastError: String? = null
+
     suspend fun switchDevice(device: AudioOutputDevice): Boolean {
         val wasPlaying = _isPlaying.value
         val pos = _currentPositionMs.value
@@ -125,9 +127,11 @@ class DesktopAudioRouter(
                     delay(300)
                     castBackend.loadStandbyCard()
                 }
+                lastError = null
                 return true
             } else {
-                println("[DesktopAudioRouter] Failed to connect to ${device.name}, remaining on ${_activeTarget.value}")
+                lastError = castBackend.lastErrorMessage ?: "Connection refused by Cast device"
+                println("[DesktopAudioRouter] Failed to connect to ${device.name}: $lastError")
                 return false
             }
         } else {
@@ -141,6 +145,7 @@ class DesktopAudioRouter(
                     localBackend.seekTo(pos)
                 }
             }
+            lastError = null
             return true
         }
     }
