@@ -8,7 +8,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.util.concurrent.ConcurrentHashMap
@@ -117,6 +119,9 @@ class DeviceDiscoveryService {
                             description = if (isBluetooth) "Paired Bluetooth Device" else "System Audio Output",
                             isCurrent = isCurr,
                         )
+                        if (isCurr && id != defaultDevice.id) {
+                            deviceCache.remove(defaultDevice.id)
+                        }
                         deviceCache[id] = dev
                         if (isCurr) {
                             _currentDevice.value = dev
@@ -127,15 +132,18 @@ class DeviceDiscoveryService {
         }
     }
 
-    private fun scanGoogleCastDevices() {
+    private suspend fun scanGoogleCastDevices() {
+        val lookupJobs = mutableListOf<Job>()
+        val seenInstances = ConcurrentHashMap.newKeySet<String>()
+
         runCatching {
             val pb = ProcessBuilder("dns-sd", "-B", "_googlecast._tcp", "local")
             val proc = pb.start()
             val reader = BufferedReader(InputStreamReader(proc.inputStream))
 
-            // Background killer after 1.4 seconds
+            // Background killer after 1.2 seconds
             val timer = scope.launch {
-                delay(1400)
+                delay(1200)
                 proc.destroyForcibly()
             }
 
@@ -144,22 +152,30 @@ class DeviceDiscoveryService {
                 while (reader.readLine().also { line = it } != null) {
                     val l = line ?: break
                     if (l.contains("Add") && l.contains("_googlecast._tcp")) {
-                        val parts = l.trim().split(Regex("\\s+"))
-                        if (parts.size >= 7) {
-                            val instanceName = parts[parts.size - 1]
-                            val cleanName = formatCastName(instanceName)
-                            val id = "cast_$instanceName"
-                            val isCurr = _currentDevice.value.id == id
+                        val idx = l.indexOf("_googlecast._tcp.")
+                        if (idx != -1) {
+                            val instanceName = l.substring(idx + "_googlecast._tcp.".length).trim()
+                            if (instanceName.isNotBlank() && seenInstances.add(instanceName)) {
+                                val cleanName = formatCastName(instanceName)
+                                val id = "cast_$instanceName"
+                                val isCurr = _currentDevice.value.id == id
 
-                            val dev = AudioOutputDevice(
-                                id = id,
-                                name = cleanName,
-                                model = "Google Cast / Nest",
-                                type = DeviceType.GOOGLE_CAST,
-                                description = "Google Cast Speaker / Display",
-                                isCurrent = isCurr,
-                            )
-                            deviceCache[id] = dev
+                                val dev = AudioOutputDevice(
+                                    id = id,
+                                    name = cleanName,
+                                    model = "Google Cast / Nest",
+                                    type = DeviceType.GOOGLE_CAST,
+                                    description = "Google Cast Speaker / Display",
+                                    isCurrent = isCurr,
+                                )
+                                deviceCache[id] = dev
+                                updateDeviceList()
+
+                                // Launch concurrent lookup for friendly room name (fn=) and device model (md=)
+                                lookupJobs += scope.launch {
+                                    resolveCastDetails(instanceName, id)
+                                }
+                            }
                         }
                     }
                 }
@@ -168,9 +184,77 @@ class DeviceDiscoveryService {
                 proc.destroyForcibly()
             }
         }
+
+        // Wait up to 1000ms for parallel lookups to complete so UI shows real names immediately
+        if (lookupJobs.isNotEmpty()) {
+            withTimeoutOrNull(1000) {
+                lookupJobs.joinAll()
+            }
+        }
+    }
+
+    private fun resolveCastDetails(instanceName: String, id: String) {
+        runCatching {
+            val pb = ProcessBuilder("dns-sd", "-L", instanceName, "_googlecast._tcp", "local")
+            val proc = pb.start()
+            val reader = BufferedReader(InputStreamReader(proc.inputStream))
+
+            val timer = scope.launch {
+                delay(600)
+                proc.destroyForcibly()
+            }
+
+            var friendlyName: String? = null
+            var modelName: String? = null
+
+            try {
+                var line: String?
+                while (reader.readLine().also { line = it } != null) {
+                    val l = line ?: break
+                    if (l.contains("fn=")) {
+                        val fn = parseTxtAttribute(l, "fn")
+                        if (!fn.isNullOrBlank()) friendlyName = fn
+                    }
+                    if (l.contains("md=")) {
+                        val md = parseTxtAttribute(l, "md")
+                        if (!md.isNullOrBlank()) modelName = md
+                    }
+                    if (friendlyName != null && modelName != null) {
+                        break
+                    }
+                }
+            } finally {
+                timer.cancel()
+                proc.destroyForcibly()
+            }
+
+            if (friendlyName != null) {
+                val currentDev = deviceCache[id]
+                if (currentDev != null) {
+                    val updatedDev = currentDev.copy(
+                        name = friendlyName,
+                        model = modelName ?: currentDev.model,
+                        description = if (modelName != null) "$modelName · Google Cast" else "Google Cast Speaker / Display"
+                    )
+                    deviceCache[id] = updatedDev
+                    if (_currentDevice.value.id == id) {
+                        _currentDevice.value = updatedDev
+                    }
+                    updateDeviceList()
+                }
+            }
+        }
+    }
+
+    private fun parseTxtAttribute(line: String, attr: String): String? {
+        val regex = Regex("""(?:^|\s)$attr=((?:\\.|[^\s])+)""")
+        val match = regex.find(line) ?: return null
+        val rawValue = match.groupValues.getOrNull(1) ?: return null
+        return rawValue.replace(Regex("""\\(.)""")) { it.groupValues[1] }.trim()
     }
 
     private fun scanAirPlayDevices() {
+        val seenInstances = ConcurrentHashMap.newKeySet<String>()
         runCatching {
             val pb = ProcessBuilder("dns-sd", "-B", "_airplay._tcp", "local")
             val proc = pb.start()
@@ -190,7 +274,7 @@ class DeviceDiscoveryService {
                         val idx = l.indexOf("_airplay._tcp.")
                         if (idx != -1) {
                             val raw = l.substring(idx + "_airplay._tcp.".length).trim()
-                            if (raw.isNotBlank()) {
+                            if (raw.isNotBlank() && seenInstances.add(raw)) {
                                 val id = "airplay_${raw.lowercase().replace(" ", "_")}"
                                 val isCurr = _currentDevice.value.id == id
                                 val dev = AudioOutputDevice(
