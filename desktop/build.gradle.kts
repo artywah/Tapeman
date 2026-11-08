@@ -26,6 +26,9 @@ dependencies {
     implementation("org.openjfx:javafx-media:21.0.2:$jfxClassifier")
     implementation("org.openjfx:javafx-graphics:21.0.2:$jfxClassifier")
     implementation("org.openjfx:javafx-base:21.0.2:$jfxClassifier")
+
+    // Google Cast V2 client
+    implementation("de.sfuhrm:chromecast-java-api-v2:0.12.13")
 }
 
 compose.desktop {
@@ -41,6 +44,7 @@ compose.desktop {
             packageVersion = "1.0.0"
             macOS {
                 bundleID = "dev.foldman.desktop"
+                iconFile.set(project.file("src/main/resources/icons/Tapeman.icns"))
             }
         }
     }

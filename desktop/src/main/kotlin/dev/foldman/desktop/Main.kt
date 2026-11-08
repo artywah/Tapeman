@@ -54,8 +54,8 @@ import dev.foldman.deck.LocalTrack
 import dev.foldman.deck.PlexAlbum
 import dev.foldman.deck.Source
 import dev.foldman.deck.Transport
+import dev.foldman.desktop.audio.DesktopAudioRouter
 import dev.foldman.desktop.audio.DesktopMechSounds
-import dev.foldman.desktop.audio.JavaFxAudioBackend
 import dev.foldman.desktop.device.DeviceDiscoveryService
 import dev.foldman.desktop.device.DeviceType
 import dev.foldman.desktop.plex.ConnectToDeviceDialog
@@ -73,13 +73,22 @@ import kotlinx.coroutines.launch
 
 fun main() = application {
     val mechSounds = remember { DesktopMechSounds() }
-    val audioBackend = remember { JavaFxAudioBackend() }
+    val audioBackend = remember { DesktopAudioRouter() }
     val authService = remember { PlexAuthService() }
     val plexClient = remember { DesktopPlexClient() }
 
     // Default window opens at the ideal 2:1 landscape ratio (1200dp x 590dp) matching user screenshot
     val windowState = rememberWindowState(width = 1200.dp, height = 590.dp)
     var isMiniPlayer by remember { mutableStateOf(false) }
+
+    val appIcon = remember {
+        runCatching {
+            val stream = Thread.currentThread().contextClassLoader.getResourceAsStream("icons/icon.png")
+            stream?.use { androidx.compose.ui.res.loadImageBitmap(it) }?.let {
+                androidx.compose.ui.graphics.painter.BitmapPainter(it)
+            }
+        }.getOrNull()
+    }
 
     Window(
         onCloseRequest = {
@@ -88,6 +97,7 @@ fun main() = application {
             exitApplication()
         },
         title = if (isMiniPlayer) "Tapeman" else "Tapeman · Retro Stereo Cassette Player",
+        icon = appIcon,
         state = windowState,
         alwaysOnTop = isMiniPlayer,
         resizable = true,
@@ -117,7 +127,7 @@ fun main() = application {
 @Composable
 fun TapemanDesktopApp(
     mechSounds: DesktopMechSounds,
-    audioBackend: JavaFxAudioBackend,
+    audioBackend: DesktopAudioRouter,
     authService: PlexAuthService,
     plexClient: DesktopPlexClient,
     isMiniPlayer: Boolean = false,
@@ -126,6 +136,13 @@ fun TapemanDesktopApp(
     val scope = rememberCoroutineScope()
     val deviceService = remember { DeviceDiscoveryService() }
     val currentDevice by deviceService.currentDevice.collectAsState()
+
+    // Hook device selection directly to active audio router
+    LaunchedEffect(deviceService, audioBackend) {
+        deviceService.onDeviceSelected = { selectedDevice ->
+            audioBackend.switchDevice(selectedDevice)
+        }
+    }
 
     var savedConfig by remember { mutableStateOf(authService.loadConfig()) }
     var showPlexDialog by remember { mutableStateOf(false) }
@@ -227,6 +244,13 @@ fun TapemanDesktopApp(
         currentQueue = queue
         currentTrackIndex = index
         currentAlbum = album
+
+        audioBackend.setTrackInfo(
+            title = track.title,
+            artist = track.artist,
+            album = album.title,
+            coverUrl = track.coverUri ?: album.coverUrl
+        )
 
         mechSounds.keyDown()
         slideTapeIn()

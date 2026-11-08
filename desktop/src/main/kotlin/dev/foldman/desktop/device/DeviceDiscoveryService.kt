@@ -34,6 +34,7 @@ data class AudioOutputDevice(
     val isCurrent: Boolean = false,
     val isConnecting: Boolean = false,
     val address: String? = null,
+    val port: Int = 8009,
 )
 
 class DeviceDiscoveryService {
@@ -206,11 +207,20 @@ class DeviceDiscoveryService {
 
             var friendlyName: String? = null
             var modelName: String? = null
+            var resolvedHost: String? = null
+            var resolvedPort: Int = 8009
 
             try {
                 var line: String?
                 while (reader.readLine().also { line = it } != null) {
                     val l = line ?: break
+                    if (l.contains("can be reached at")) {
+                        val m = Regex("""can be reached at ([^:]+):(\d+)""").find(l)
+                        if (m != null) {
+                            resolvedHost = m.groupValues[1].removeSuffix(".")
+                            resolvedPort = m.groupValues[2].toIntOrNull() ?: 8009
+                        }
+                    }
                     if (l.contains("fn=")) {
                         val fn = parseTxtAttribute(l, "fn")
                         if (!fn.isNullOrBlank()) friendlyName = fn
@@ -219,7 +229,7 @@ class DeviceDiscoveryService {
                         val md = parseTxtAttribute(l, "md")
                         if (!md.isNullOrBlank()) modelName = md
                     }
-                    if (friendlyName != null && modelName != null) {
+                    if (friendlyName != null && modelName != null && resolvedHost != null) {
                         break
                     }
                 }
@@ -228,13 +238,17 @@ class DeviceDiscoveryService {
                 proc.destroyForcibly()
             }
 
-            if (friendlyName != null) {
+            val resolvedIp = if (resolvedHost != null) resolveIpv4(resolvedHost) ?: resolvedHost else null
+
+            if (friendlyName != null || resolvedIp != null) {
                 val currentDev = deviceCache[id]
                 if (currentDev != null) {
                     val updatedDev = currentDev.copy(
-                        name = friendlyName,
+                        name = friendlyName ?: currentDev.name,
                         model = modelName ?: currentDev.model,
-                        description = if (modelName != null) "$modelName · Google Cast" else "Google Cast Speaker / Display"
+                        description = if (modelName != null) "$modelName · Google Cast" else "Google Cast Speaker / Display",
+                        address = resolvedIp ?: currentDev.address,
+                        port = resolvedPort
                     )
                     deviceCache[id] = updatedDev
                     if (_currentDevice.value.id == id) {
@@ -244,6 +258,34 @@ class DeviceDiscoveryService {
                 }
             }
         }
+    }
+
+    private fun resolveIpv4(host: String): String? {
+        return runCatching {
+            val pb = ProcessBuilder("dns-sd", "-G", "v4", host)
+            val proc = pb.start()
+            val reader = BufferedReader(InputStreamReader(proc.inputStream))
+            val timer = scope.launch {
+                delay(350)
+                proc.destroyForcibly()
+            }
+            try {
+                var line: String?
+                while (reader.readLine().also { line = it } != null) {
+                    val l = line ?: break
+                    val parts = l.trim().split(Regex("""\s+"""))
+                    for (part in parts) {
+                        if (part.matches(Regex("""^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$""")) && !part.startsWith("127.")) {
+                            return part
+                        }
+                    }
+                }
+            } finally {
+                timer.cancel()
+                proc.destroyForcibly()
+            }
+            null
+        }.getOrNull()
     }
 
     private fun parseTxtAttribute(line: String, attr: String): String? {
@@ -328,17 +370,28 @@ class DeviceDiscoveryService {
         _availableDevices.value = list
     }
 
+    var onDeviceSelected: (suspend (AudioOutputDevice) -> Unit)? = null
+
     fun selectDevice(device: AudioOutputDevice) {
         scope.launch {
-            // Set connecting state
-            _currentDevice.value = device.copy(isCurrent = true, isConnecting = true)
+            var dev = device.copy(isCurrent = true, isConnecting = true)
+            _currentDevice.value = dev
             updateDeviceList()
 
-            // Connect delay simulation / verification
-            delay(400)
+            // If Cast address is not resolved yet, resolve it on demand
+            if (dev.type == DeviceType.GOOGLE_CAST && dev.address == null) {
+                val rawInstance = dev.id.removePrefix("cast_")
+                resolveCastDetails(rawInstance, dev.id)
+                dev = deviceCache[dev.id] ?: dev
+            }
 
-            _currentDevice.value = device.copy(isCurrent = true, isConnecting = false)
-            deviceCache[device.id] = device.copy(isCurrent = true)
+            runCatching {
+                onDeviceSelected?.invoke(dev)
+            }
+
+            val finalDev = dev.copy(isCurrent = true, isConnecting = false)
+            _currentDevice.value = finalDev
+            deviceCache[finalDev.id] = finalDev
             updateDeviceList()
         }
     }
