@@ -42,10 +42,38 @@ compose.desktop {
             )
             packageName = "Tapeman"
             packageVersion = "1.0.0"
+            appResourcesRootDir.set(project.file("src/main/packaging"))
             macOS {
                 bundleID = "dev.foldman.desktop"
                 iconFile.set(project.file("src/main/resources/icons/Tapeman.icns"))
+                infoPlist {
+                    extraKeysRawXml = """
+                        <key>NSLocalNetworkUsageDescription</key>
+                        <string>Tapeman needs local network access to discover and stream audio to Google Cast and AirPlay devices.</string>
+                        <key>NSBonjourServices</key>
+                        <array>
+                            <string>_googlecast._tcp</string>
+                            <string>_airplay._tcp</string>
+                            <string>_raop._tcp</string>
+                        </array>
+                    """.trimIndent()
+                }
             }
+        }
+    }
+}
+
+tasks.matching { it.name.startsWith("packageDmg") }.configureEach {
+    doLast {
+        val dmgFile = file("build/compose/binaries/main/dmg/Tapeman-1.0.0.dmg")
+        val iconFile = file("src/main/resources/icons/Tapeman.icns")
+        val scriptFile = file("src/main/resources/bin/patch_dmg_icon.py")
+        if (dmgFile.exists() && iconFile.exists() && scriptFile.exists()) {
+            println("[packageDmg] Patching volume icon on ${dmgFile.name}...")
+            val pb = ProcessBuilder("python3", scriptFile.absolutePath, dmgFile.absolutePath, iconFile.absolutePath)
+            pb.inheritIO()
+            val exitCode = pb.start().waitFor()
+            println("[packageDmg] Patching finished with code $exitCode")
         }
     }
 }

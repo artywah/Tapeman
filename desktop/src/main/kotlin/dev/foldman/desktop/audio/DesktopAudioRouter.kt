@@ -103,24 +103,21 @@ class DesktopAudioRouter(
         println("[DesktopAudioRouter] Switching output device to ${device.name} (${device.type})")
 
         if (device.type == DeviceType.GOOGLE_CAST) {
-            _activeTarget.value = DeviceType.GOOGLE_CAST
-            localBackend.stop()
-
             val connected = castBackend.connectToDevice(device)
             if (connected) {
+                _activeTarget.value = DeviceType.GOOGLE_CAST
+                localBackend.stop()
                 castBackend.setVolume(_volume.value)
-                if (!url.isNullOrBlank()) {
+                if (wasPlaying && !url.isNullOrBlank()) {
                     delay(300)
                     castBackend.play(url)
                     if (pos > 1000) {
                         delay(600)
                         castBackend.seekTo(pos)
                     }
-                    if (!wasPlaying) {
-                        delay(400)
-                        castBackend.pause()
-                    }
                 }
+            } else {
+                println("[DesktopAudioRouter] Failed to connect to ${device.name}, remaining on ${_activeTarget.value}")
             }
         } else {
             // Revert to Mac Built-in or Bluetooth

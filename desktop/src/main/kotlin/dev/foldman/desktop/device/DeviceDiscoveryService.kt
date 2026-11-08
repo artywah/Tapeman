@@ -399,14 +399,16 @@ class DeviceDiscoveryService {
             updateDeviceList()
 
             // If Cast address is not resolved yet, resolve it on demand
-            if (dev.type == DeviceType.GOOGLE_CAST && dev.address == null) {
+            if (dev.type == DeviceType.GOOGLE_CAST && (dev.address == null || dev.address.endsWith(".local"))) {
                 val rawInstance = dev.id.removePrefix("cast_")
                 resolveCastDetails(rawInstance, dev.id)
                 dev = deviceCache[dev.id] ?: dev
             }
 
-            runCatching {
+            try {
                 onDeviceSelected?.invoke(dev)
+            } catch (t: Throwable) {
+                t.printStackTrace()
             }
 
             val finalDev = dev.copy(isCurrent = true, isConnecting = false)

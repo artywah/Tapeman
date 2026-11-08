@@ -158,7 +158,20 @@ class GoogleCastAudioBackend : AudioBackend {
         lastUrl = url
         scope.launch {
             try {
-                val cast = client ?: return@launch
+                var cast = client
+                if (cast == null || !cast.isConnected) {
+                    val dev = activeDevice
+                    if (dev != null) {
+                        println("[GoogleCast] Reconnecting to ${dev.name} before playing...")
+                        connectToDevice(dev)
+                        cast = client
+                    }
+                }
+                if (cast == null) {
+                    println("[GoogleCast] Play aborted: no active cast device connected")
+                    _isPlaying.value = false
+                    return@launch
+                }
                 val title = if (currentArtist.isNotBlank()) "$currentTrackTitle — $currentArtist" else currentTrackTitle
                 val thumb = currentCoverUrl ?: "https://raw.githubusercontent.com/artywah/Tapeman/main/art/icon.png"
                 val contentType = when {
@@ -204,7 +217,16 @@ class GoogleCastAudioBackend : AudioBackend {
     override fun resume() {
         scope.launch {
             try {
-                val cast = client ?: return@launch
+                var cast = client
+                if (cast == null || !cast.isConnected) {
+                    val dev = activeDevice
+                    if (dev != null) {
+                        println("[GoogleCast] Reconnecting to ${dev.name} before resume...")
+                        connectToDevice(dev)
+                        cast = client
+                    }
+                }
+                if (cast == null) return@launch
                 val mediaStatus = runCatching { cast.mediaStatus }.getOrNull()
                 val url = lastUrl
                 if ((mediaStatus == null || mediaStatus.media == null) && !url.isNullOrBlank()) {
