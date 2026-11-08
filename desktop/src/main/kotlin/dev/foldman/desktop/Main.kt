@@ -90,6 +90,23 @@ fun main() = application {
         }.getOrNull()
     }
 
+    LaunchedEffect(Unit) {
+        if (java.awt.Taskbar.isTaskbarSupported()) {
+            runCatching {
+                val taskbar = java.awt.Taskbar.getTaskbar()
+                if (taskbar.isSupported(java.awt.Taskbar.Feature.ICON_IMAGE)) {
+                    val stream = Thread.currentThread().contextClassLoader.getResourceAsStream("icons/icon.png")
+                    stream?.use {
+                        val img = javax.imageio.ImageIO.read(it)
+                        if (img != null) {
+                            taskbar.iconImage = img
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     Window(
         onCloseRequest = {
             audioBackend.release()

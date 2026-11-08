@@ -261,8 +261,28 @@ class DeviceDiscoveryService {
     }
 
     private fun resolveIpv4(host: String): String? {
+        val cleanHost = host.trimEnd('.')
+        // 1. Instant resolution via macOS dscacheutil
+        runCatching {
+            val pb = ProcessBuilder("dscacheutil", "-q", "host", "-a", "name", cleanHost)
+            val proc = pb.start()
+            val reader = BufferedReader(InputStreamReader(proc.inputStream))
+            var line: String?
+            while (reader.readLine().also { line = it } != null) {
+                val l = line?.trim() ?: continue
+                if (l.startsWith("ip_address:")) {
+                    val ip = l.substringAfter("ip_address:").trim()
+                    if (ip.matches(Regex("""^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$""")) && !ip.startsWith("127.")) {
+                        proc.destroy()
+                        return ip
+                    }
+                }
+            }
+        }
+
+        // 2. Fallback to dns-sd -G v4
         return runCatching {
-            val pb = ProcessBuilder("dns-sd", "-G", "v4", host)
+            val pb = ProcessBuilder("dns-sd", "-G", "v4", cleanHost)
             val proc = pb.start()
             val reader = BufferedReader(InputStreamReader(proc.inputStream))
             val timer = scope.launch {

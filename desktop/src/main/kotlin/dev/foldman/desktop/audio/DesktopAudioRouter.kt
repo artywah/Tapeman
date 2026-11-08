@@ -13,7 +13,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class DesktopAudioRouter(
-    val localBackend: JavaFxAudioBackend = JavaFxAudioBackend(),
+    val localBackend: AudioBackend = if (System.getProperty("os.name").contains("Mac", ignoreCase = true)) {
+        MacNativeAudioBackend()
+    } else {
+        JavaFxAudioBackend()
+    },
     val castBackend: GoogleCastAudioBackend = GoogleCastAudioBackend(),
 ) : AudioBackend {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -105,19 +109,23 @@ class DesktopAudioRouter(
             val connected = castBackend.connectToDevice(device)
             if (connected) {
                 castBackend.setVolume(_volume.value)
-                if (wasPlaying && !url.isNullOrBlank()) {
+                if (!url.isNullOrBlank()) {
                     delay(300)
                     castBackend.play(url)
                     if (pos > 1000) {
                         delay(600)
                         castBackend.seekTo(pos)
                     }
+                    if (!wasPlaying) {
+                        delay(400)
+                        castBackend.pause()
+                    }
                 }
             }
         } else {
             // Revert to Mac Built-in or Bluetooth
             _activeTarget.value = device.type
-            castBackend.disconnect()
+            castBackend.stop()
 
             if (wasPlaying && !url.isNullOrBlank()) {
                 localBackend.play(url)
@@ -134,6 +142,7 @@ class DesktopAudioRouter(
             localBackend.stop()
             castBackend.play(url, headers)
         } else {
+            castBackend.stop()
             localBackend.play(url, headers)
         }
     }

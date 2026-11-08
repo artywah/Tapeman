@@ -35,6 +35,7 @@ class GoogleCastAudioBackend : AudioBackend {
     private var client: ChromeCast? = null
     private var pollJob: Job? = null
     private var activeDevice: AudioOutputDevice? = null
+    private var lastUrl: String? = null
 
     // Track metadata for the receiver display
     var currentTrackTitle: String = "Tapeman Audio"
@@ -49,12 +50,45 @@ class GoogleCastAudioBackend : AudioBackend {
         currentCoverUrl = coverUrl
     }
 
+    private fun resolveIpv4Direct(host: String): String? {
+        val cleanHost = host.trimEnd('.')
+        // 1. Try dscacheutil
+        runCatching {
+            val pb = ProcessBuilder("dscacheutil", "-q", "host", "-a", "name", cleanHost)
+            val proc = pb.start()
+            val reader = java.io.BufferedReader(java.io.InputStreamReader(proc.inputStream))
+            var line: String?
+            while (reader.readLine().also { line = it } != null) {
+                val l = line?.trim() ?: continue
+                if (l.startsWith("ip_address:")) {
+                    val ip = l.substringAfter("ip_address:").trim()
+                    if (ip.matches(Regex("""^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$""")) && !ip.startsWith("127.")) {
+                        proc.destroy()
+                        return ip
+                    }
+                }
+            }
+        }
+        // 2. Try InetAddress
+        runCatching {
+            val addr = java.net.InetAddress.getByName(cleanHost)
+            val ip = addr.hostAddress
+            if (ip.matches(Regex("""^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$"""))) {
+                return ip
+            }
+        }
+        return null
+    }
+
     suspend fun connectToDevice(device: AudioOutputDevice): Boolean = withContext(Dispatchers.IO) {
-        val addr = device.address
-        if (addr.isNullOrBlank()) {
+        val rawAddr = device.address
+        if (rawAddr.isNullOrBlank()) {
             println("[GoogleCast] Cannot connect: device address is null for ${device.name}")
             return@withContext false
         }
+        val addr = if (rawAddr.endsWith(".local") || !rawAddr.matches(Regex("""^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$"""))) {
+            resolveIpv4Direct(rawAddr) ?: rawAddr
+        } else rawAddr
 
         try {
             disconnect()
@@ -76,6 +110,7 @@ class GoogleCastAudioBackend : AudioBackend {
             client = cast
             activeDevice = device
             startPolling()
+            runCatching { cast.setVolume(_volume.value) }
             println("[GoogleCast] Connected successfully to ${device.name}!")
             true
         } catch (t: Throwable) {
@@ -120,6 +155,7 @@ class GoogleCastAudioBackend : AudioBackend {
     }
 
     override fun play(url: String, headers: Map<String, String>) {
+        lastUrl = url
         scope.launch {
             try {
                 val cast = client ?: return@launch
@@ -168,8 +204,15 @@ class GoogleCastAudioBackend : AudioBackend {
     override fun resume() {
         scope.launch {
             try {
-                client?.play()
-                _isPlaying.value = true
+                val cast = client ?: return@launch
+                val mediaStatus = runCatching { cast.mediaStatus }.getOrNull()
+                val url = lastUrl
+                if ((mediaStatus == null || mediaStatus.media == null) && !url.isNullOrBlank()) {
+                    play(url)
+                } else {
+                    cast.play()
+                    _isPlaying.value = true
+                }
             } catch (t: Throwable) {
                 t.printStackTrace()
             }
