@@ -34,7 +34,13 @@ dependencies {
 compose.desktop {
     application {
         mainClass = "dev.foldman.desktop.MainKt"
-        jvmArgs += listOf("--enable-native-access=ALL-UNNAMED")
+        jvmArgs += listOf(
+            "--enable-native-access=ALL-UNNAMED",
+            "--add-opens=jdk.unsupported/sun.misc=ALL-UNNAMED",
+            "--add-opens=java.base/java.nio=ALL-UNNAMED",
+            "--add-opens=java.base/java.lang=ALL-UNNAMED",
+            "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED"
+        )
         nativeDistributions {
             targetFormats(
                 org.jetbrains.compose.desktop.application.dsl.TargetFormat.Dmg,
@@ -42,6 +48,13 @@ compose.desktop {
             )
             packageName = "Tapeman"
             packageVersion = "1.0.0"
+            modules(
+                "java.instrument",
+                "java.sql",
+                "java.naming",
+                "java.management",
+                "jdk.unsupported"
+            )
             appResourcesRootDir.set(project.file("src/main/packaging"))
             macOS {
                 bundleID = "dev.foldman.desktop"
