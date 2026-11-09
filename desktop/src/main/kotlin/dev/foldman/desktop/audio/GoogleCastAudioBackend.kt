@@ -15,6 +15,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import su.litvak.chromecast.api.v2.ChromeCast
+import su.litvak.chromecast.api.v2.Media
 import su.litvak.chromecast.api.v2.MediaStatus
 
 class GoogleCastAudioBackend : AudioBackend {
@@ -29,7 +30,7 @@ class GoogleCastAudioBackend : AudioBackend {
     private val _durationMs = MutableStateFlow(0L)
     override val durationMs: StateFlow<Long> = _durationMs.asStateFlow()
 
-    private val _volume = MutableStateFlow(1.0f)
+    private val _volume = MutableStateFlow(0.20f)
     override val volume: StateFlow<Float> = _volume.asStateFlow()
 
     private var client: ChromeCast? = null
@@ -106,15 +107,60 @@ class GoogleCastAudioBackend : AudioBackend {
         return false
     }
 
+    private fun createMusicMedia(
+        url: String,
+        title: String,
+        artist: String,
+        album: String,
+        coverUrl: String?
+    ): Media {
+        val contentType = detectMimeType(url)
+        val thumb = coverUrl?.takeIf { it.isNotBlank() }
+            ?: "https://raw.githubusercontent.com/artywah/Tapeman/main/art/icon.png"
+
+        val metadata = mutableMapOf<String, Any>(
+            "metadataType" to 3, // 3 = MEDIA_TYPE_MUSIC_TRACK in Google Cast CAF
+            "title" to title.ifBlank { "Tapeman Audio" },
+            "artist" to artist.ifBlank { "Tapeman Stereo" },
+            "albumName" to album.ifBlank { "Tapeman Tape" },
+            "albumArtist" to artist.ifBlank { "Tapeman Stereo" },
+            "seriesTitle" to "Tapeman Stereo",
+            "subtitle" to if (album.isNotBlank()) album else artist,
+            "images" to listOf(
+                mapOf(
+                    "url" to thumb,
+                    "width" to 512,
+                    "height" to 512
+                )
+            )
+        )
+
+        return Media(
+            url,
+            contentType,
+            null,
+            Media.StreamType.BUFFERED,
+            null,
+            metadata,
+            null,
+            null
+        )
+    }
+
     suspend fun loadStandbyCard() {
         try {
             val cast = client ?: return
             ensureAppReady(cast)
-            val title = "Tapeman · Connected"
-            val thumb = "https://raw.githubusercontent.com/artywah/Tapeman/main/art/icon.png"
             val silenceUrl = "https://raw.githubusercontent.com/artywah/Tapeman/main/art/silence.mp3"
             println("[GoogleCast] Displaying standby card on ${activeDevice?.name ?: "Cast Device"}")
-            cast.load(title, thumb, silenceUrl, "audio/mpeg")
+            val media = createMusicMedia(
+                url = silenceUrl,
+                title = "Tapeman · Connected",
+                artist = "Ready to Play",
+                album = "Stereo Cassette Player",
+                coverUrl = "https://raw.githubusercontent.com/artywah/Tapeman/main/art/icon.png"
+            )
+            cast.load(media)
             delay(300)
             cast.pause()
         } catch (t: Throwable) {
@@ -127,11 +173,15 @@ class GoogleCastAudioBackend : AudioBackend {
         try {
             val cast = client ?: return
             ensureAppReady(cast)
-            val title = if (currentArtist.isNotBlank()) "$currentTrackTitle — $currentArtist" else currentTrackTitle
-            val thumb = currentCoverUrl ?: "https://raw.githubusercontent.com/artywah/Tapeman/main/art/icon.png"
-            val contentType = detectMimeType(url)
-            println("[GoogleCast] Loading ready track: $title")
-            cast.load(title, thumb, url, contentType)
+            println("[GoogleCast] Loading ready track: $currentTrackTitle — $currentArtist ($currentAlbum)")
+            val media = createMusicMedia(
+                url = url,
+                title = currentTrackTitle,
+                artist = currentArtist,
+                album = currentAlbum,
+                coverUrl = currentCoverUrl
+            )
+            cast.load(media)
             delay(300)
             cast.pause()
             _isPlaying.value = false
@@ -205,8 +255,9 @@ class GoogleCastAudioBackend : AudioBackend {
             client = cast
             activeDevice = device
             startPolling()
-            runCatching { cast.setVolume(_volume.value) }
-            println("[GoogleCast] Connected successfully to ${device.name}!")
+            _volume.value = 0.20f
+            runCatching { cast.setVolume(0.20f) }
+            println("[GoogleCast] Connected successfully to ${device.name} at 20% volume!")
             lastErrorMessage = null
             true
         } catch (t: Throwable) {
@@ -272,17 +323,15 @@ class GoogleCastAudioBackend : AudioBackend {
                 }
                 ensureAppReady(cast)
 
-                val title = if (currentArtist.isNotBlank()) "$currentTrackTitle — $currentArtist" else currentTrackTitle
-                val thumb = currentCoverUrl ?: "https://raw.githubusercontent.com/artywah/Tapeman/main/art/icon.png"
-                val contentType = detectMimeType(url)
-
-                println("[GoogleCast] Loading media: $title, URL: $url")
-                cast.load(
-                    title,
-                    thumb,
-                    url,
-                    contentType
+                println("[GoogleCast] Loading media with rich MUSIC_TRACK metadata: $currentTrackTitle — $currentArtist ($currentAlbum)")
+                val media = createMusicMedia(
+                    url = url,
+                    title = currentTrackTitle,
+                    artist = currentArtist,
+                    album = currentAlbum,
+                    coverUrl = currentCoverUrl
                 )
+                cast.load(media)
                 _isPlaying.value = true
             } catch (t: Throwable) {
                 println("[GoogleCast] Play failed: ${t.message}")

@@ -208,6 +208,11 @@ fun TapemanDesktopApp(
     val isPlaying by audioBackend.isPlaying.collectAsState()
     val audioPosMs by audioBackend.currentPositionMs.collectAsState()
     val audioDurMs by audioBackend.durationMs.collectAsState()
+    val audioVolume by audioBackend.volume.collectAsState()
+
+    LaunchedEffect(audioVolume) {
+        volume = audioVolume
+    }
 
     // Determine current transport state
     val transport = when {
@@ -963,6 +968,11 @@ fun TapemanDesktopApp(
             if (showDeviceDialog) {
                 ConnectToDeviceDialog(
                     deviceService = deviceService,
+                    currentVolume = volume,
+                    onVolumeChange = {
+                        volume = it
+                        audioBackend.setVolume(it)
+                    },
                     onDismiss = { showDeviceDialog = false }
                 )
             }

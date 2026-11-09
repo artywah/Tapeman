@@ -577,6 +577,8 @@ fun PlexConnectionDialog(
 @Composable
 fun ConnectToDeviceDialog(
     deviceService: DeviceDiscoveryService,
+    currentVolume: Float = 0.2f,
+    onVolumeChange: (Float) -> Unit = {},
     onDismiss: () -> Unit,
 ) {
     val currentDevice by deviceService.currentDevice.collectAsState()
@@ -585,7 +587,7 @@ fun ConnectToDeviceDialog(
     val connectingDeviceId by deviceService.connectingDeviceId.collectAsState()
     val connectionStatus by deviceService.connectionStatus.collectAsState()
 
-    var sliderVol by remember { mutableFloatStateOf(1f) }
+    var sliderVol by remember(currentVolume) { mutableFloatStateOf(currentVolume) }
 
     Box(
         modifier = Modifier
@@ -786,7 +788,10 @@ fun ConnectToDeviceDialog(
                             Spacer(Modifier.width(6.dp))
                             Slider(
                                 value = sliderVol,
-                                onValueChange = { sliderVol = it },
+                                onValueChange = {
+                                    sliderVol = it
+                                    onVolumeChange(it)
+                                },
                                 colors = SliderDefaults.colors(
                                     thumbColor = Color(0xFF1DB954),
                                     activeTrackColor = Color(0xFF1DB954),

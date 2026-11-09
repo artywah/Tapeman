@@ -109,7 +109,10 @@ class DesktopAudioRouter(
             if (connected) {
                 _activeTarget.value = DeviceType.GOOGLE_CAST
                 localBackend.stop()
-                castBackend.setVolume(_volume.value)
+                // Launch casting at a comfortable 20% volume
+                val initialCastVolume = 0.20f
+                _volume.value = initialCastVolume
+                castBackend.setVolume(initialCastVolume)
                 if (!url.isNullOrBlank()) {
                     castBackend.setLastUrl(url)
                 }
