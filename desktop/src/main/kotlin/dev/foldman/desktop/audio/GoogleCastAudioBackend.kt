@@ -19,6 +19,11 @@ import su.litvak.chromecast.api.v2.Media
 import su.litvak.chromecast.api.v2.MediaStatus
 
 class GoogleCastAudioBackend : AudioBackend {
+    companion object {
+        const val TAPEMAN_APP_ID = "8E0C5F4B"
+        const val DEFAULT_MEDIA_RECEIVER_APP_ID = "CC1AD845"
+    }
+
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private val _isPlaying = MutableStateFlow(false)
@@ -37,6 +42,7 @@ class GoogleCastAudioBackend : AudioBackend {
     private var pollJob: Job? = null
     private var activeDevice: AudioOutputDevice? = null
     private var lastUrl: String? = null
+    private var currentAppId: String = TAPEMAN_APP_ID
     var lastErrorMessage: String? = null
 
     fun setLastUrl(url: String) {
@@ -95,12 +101,18 @@ class GoogleCastAudioBackend : AudioBackend {
     }
 
     private suspend fun ensureAppReady(cast: ChromeCast): Boolean {
+        val appId = currentAppId
         for (i in 1..8) {
             try {
-                if (cast.isAppRunning("CC1AD845")) return true
+                if (cast.isAppRunning(appId)) return true
             } catch (_: Throwable) {}
             if (i == 1) {
-                runCatching { cast.launchApp("CC1AD845") }
+                val launched = runCatching { cast.launchApp(appId) }.getOrNull()
+                if (launched == null && appId == TAPEMAN_APP_ID) {
+                    println("[GoogleCast] $TAPEMAN_APP_ID not ready, falling back to $DEFAULT_MEDIA_RECEIVER_APP_ID")
+                    currentAppId = DEFAULT_MEDIA_RECEIVER_APP_ID
+                    runCatching { cast.launchApp(DEFAULT_MEDIA_RECEIVER_APP_ID) }
+                }
             }
             delay(400)
         }
@@ -244,13 +256,24 @@ class GoogleCastAudioBackend : AudioBackend {
             cast.connect()
             cast.setAutoReconnect(true)
 
-            // Launch Default Media Receiver app directly (matching verified working protocol)
-            println("[GoogleCast] Launching Default Media Receiver (CC1AD845)...")
+            // Launch Tapeman custom receiver or fallback to Default Media Receiver
             val running = runCatching { cast.status?.runningApp }.getOrNull()
-            if (running == null || running.id != "CC1AD845") {
-                cast.launchApp("CC1AD845")
+            var launchedAppId = TAPEMAN_APP_ID
+            if (running == null || (running.id != TAPEMAN_APP_ID && running.id != DEFAULT_MEDIA_RECEIVER_APP_ID)) {
+                println("[GoogleCast] Launching Tapeman receiver ($TAPEMAN_APP_ID)...")
+                val launched = runCatching { cast.launchApp(TAPEMAN_APP_ID) }.getOrNull()
+                if (launched == null) {
+                    println("[GoogleCast] $TAPEMAN_APP_ID not accepted by device, falling back to $DEFAULT_MEDIA_RECEIVER_APP_ID...")
+                    cast.launchApp(DEFAULT_MEDIA_RECEIVER_APP_ID)
+                    launchedAppId = DEFAULT_MEDIA_RECEIVER_APP_ID
+                } else {
+                    launchedAppId = launched.id ?: TAPEMAN_APP_ID
+                }
                 delay(800)
+            } else {
+                launchedAppId = running.id
             }
+            currentAppId = launchedAppId
 
             client = cast
             activeDevice = device
