@@ -1,0 +1,18 @@
+/* Tapeman Retro Walkman Styled Receiver Skin */
+
+.progressBar {
+    background-color: rgb(229, 160, 13); /* Walkman Gold #E5A00D */
+}
+
+.logo {
+    background-image: url('https://raw.githubusercontent.com/artywah/Tapeman/main/art/icon.png');
+    background-size: contain;
+}
+
+.splash {
+    background-color: rgb(18, 18, 20);
+    background-image: url('https://raw.githubusercontent.com/artywah/Tapeman/main/art/icon.png');
+    background-size: 240px 240px;
+    background-position: center center;
+    background-repeat: no-repeat;
+}
