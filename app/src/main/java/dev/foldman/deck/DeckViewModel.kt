@@ -101,6 +101,8 @@ sealed interface DeckEvent {
 }
 
 class DeckViewModel(app: Application) : AndroidViewModel(app) {
+    val castManager = dev.foldman.cast.AndroidCastManager(app)
+
     private val prefs = app.getSharedPreferences("foldman", Context.MODE_PRIVATE)
     private val audio = app.getSystemService(AudioManager::class.java)
     private val library = LocalLibrary(app)
@@ -206,7 +208,11 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         if (winding != 0) finishWinding()
         stopped = false
         playRequestedAt = SystemClock.elapsedRealtime()
-        backend.play()
+        if (castManager.isConnected) {
+            castManager.resume()
+        } else {
+            backend.play()
+        }
         tick()
     }
 
@@ -215,7 +221,11 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             Transport.PLAYING -> {
                 stopped = false
                 playRequestedAt = 0
-                backend.pause()
+                if (castManager.isConnected) {
+                    castManager.pause()
+                } else {
+                    backend.pause()
+                }
             }
             Transport.PAUSED -> play()
             else -> return
@@ -241,6 +251,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         when {
             winding != 0 -> finishWinding()
             _ui.value.transport == Transport.STOPPED -> _events.tryEmit(DeckEvent.Eject)
+            castManager.isConnected -> castManager.pause()
             else -> backend.pause()
         }
         stopped = true
@@ -254,13 +265,31 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     /** AMS back: to the top of this song, or the previous one when already near its start. */
     fun previous() {
         if (winding != 0) finishWinding()
-        if (backend.positionMs() > 3000 || !_ui.value.hasPrevious) backend.seekTo(0) else backend.skipToPrevious()
+        if (castManager.isConnected) {
+            val pos = castManager.currentPositionMs.value
+            val prevIdx = _ui.value.trackIndex - 1
+            if (pos > 3000 || prevIdx < 0) {
+                castManager.seekTo(0)
+            } else {
+                playTrack(prevIdx)
+            }
+        } else {
+            if (backend.positionMs() > 3000 || !_ui.value.hasPrevious) backend.seekTo(0) else backend.skipToPrevious()
+        }
         tick()
     }
 
     fun next() {
         if (winding != 0) finishWinding()
-        backend.skipToNext()
+        if (castManager.isConnected) {
+            val nextIdx = _ui.value.trackIndex + 1
+            val activeList = if (source == Source.PLEX) plexLoadedTracks else tracks
+            if (nextIdx in activeList.indices) {
+                playTrack(nextIdx)
+            }
+        } else {
+            backend.skipToNext()
+        }
         tick()
     }
 
@@ -356,6 +385,33 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun playTrack(index: Int) {
+        val isPlex = source == Source.PLEX
+        val activeList = if (isPlex) plexLoadedTracks else tracks
+        val track = activeList.getOrNull(index)
+
+        if (castManager.isConnected && track != null) {
+            if (winding != 0) finishWinding()
+            stopped = false
+            playRequestedAt = SystemClock.elapsedRealtime()
+            local.pause()
+            plexBackend.pause()
+            val albumTitle = if (isPlex) plex.value.loadedAlbumTitle.orEmpty() else folderName.orEmpty()
+            castManager.play(
+                url = track.uri.toString(),
+                title = track.title,
+                artist = track.artist ?: "",
+                album = albumTitle,
+                coverUrl = track.coverUri?.toString()
+            )
+            if (isPlex) {
+                plexBackend.setTracks(activeList, startIndex = index, loadIntoPlayer = false)
+            } else {
+                local.setTracks(activeList, startIndex = index, loadIntoPlayer = false)
+            }
+            tick()
+            return
+        }
+
         if (source == Source.PLEX) {
             if (winding != 0) finishWinding()
             stopped = false
@@ -1139,6 +1195,11 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     // endregion
 
     fun setVolume(fraction: Float) {
+        if (castManager.isConnected) {
+            castManager.setVolume(fraction)
+            _ui.value = _ui.value.copy(volume = fraction.coerceIn(0f, 1f))
+            return
+        }
         val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
         val target = (fraction.coerceIn(0f, 1f) * max).roundToInt()
         if (target != audio.getStreamVolume(AudioManager.STREAM_MUSIC)) {
@@ -1148,11 +1209,14 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun tick() {
+        val isCast = castManager.isConnected
         val state = backend.state.value
         val now = SystemClock.elapsedRealtime()
         if (winding != 0) windStep(state)
         if (state.ended) stopped = true
-        if (state.isPlaying && winding == 0) {
+
+        val isPlaying = if (isCast) castManager.isPlaying.value else state.isPlaying
+        if (isPlaying && winding == 0) {
             stopped = false
             playRequestedAt = 0
         }
@@ -1160,14 +1224,18 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         val transport = when {
             winding < 0 -> Transport.REWINDING
             winding > 0 -> Transport.FAST_FORWARDING
-            state.isPlaying || playPending -> Transport.PLAYING
+            isPlaying || playPending -> Transport.PLAYING
             stopped -> Transport.STOPPED
             else -> Transport.PAUSED
         }
         val np = state.nowPlaying
         updateLabel(np)
         val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
-        val volume = audio.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / max
+        val volume = if (isCast) {
+            castManager.volume.value
+        } else {
+            audio.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / max
+        }
         val prev = _ui.value
         val activeTracks = if (source == Source.PLEX) plexLoadedTracks else tracks
         val activeQueue = when (source) {
@@ -1180,6 +1248,16 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         } else {
             state.currentQueueId
         }
+
+        val castPos = castManager.currentPositionMs.value
+        val castDur = castManager.durationMs.value
+        val currentPosition = when {
+            winding != 0 -> windPosition
+            isCast -> castPos
+            else -> backend.positionMs()
+        }
+        val currentDuration = if (isCast && castDur > 0) castDur else np.durationMs
+
         _ui.value = DeckUi(
             source = source,
             transport = transport,
@@ -1189,15 +1267,15 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             album = np.album.orEmpty(),
             artwork = artBitmap,
             label = label,
-            positionMs = if (winding != 0) windPosition else backend.positionMs(),
-            durationMs = np.durationMs,
+            positionMs = currentPosition,
+            durationMs = currentDuration,
             trackIndex = state.trackIndex,
             trackCount = state.trackCount,
             hasNext = state.hasNext,
             hasPrevious = state.hasPrevious,
             tracks = activeTracks,
             folderName = if (source == Source.PLEX) plex.value.loadedAlbumTitle else folderName,
-            volume = if (kotlin.math.abs(prev.volume - volume) * max < 1f) prev.volume else volume,
+            volume = if (isCast) volume else if (kotlin.math.abs(prev.volume - volume) * max < 1f) prev.volume else volume,
             queue = activeQueue,
             currentQueueId = activeQueueId,
             keySounds = prefs.getBoolean(KEY_SOUNDS, true),
@@ -1213,12 +1291,18 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
             plex = plex.value,
             spotify = spotify.value,
         )
+
+        // Check if track ended on cast device to auto-advance
+        if (isCast && !castManager.isPlaying.value && castDur > 0 && castPos >= castDur - 800L && _ui.value.hasNext && !stopped) {
+            next()
+        }
+
         dev.foldman.widget.TapeWidgetManager.notifyUiState(
             context = getApplication(),
             title = np.title,
             artist = np.artist,
             album = np.album,
-            isPlaying = state.isPlaying,
+            isPlaying = isPlaying,
             source = source.label,
             artwork = np.artwork,
             hasPrevious = state.hasPrevious,
@@ -1261,6 +1345,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        castManager.disconnect()
         local.release()
         plexBackend.release()
         remotes.values.forEach { it.release() }

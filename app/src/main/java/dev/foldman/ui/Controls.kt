@@ -3,6 +3,7 @@ package dev.foldman.ui
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -143,7 +144,13 @@ fun Modifier.paintedBody(
  * Right: Silver "TAPEMAN" wordmark, "[AVLS]" pill badge, and version number.
  */
 @Composable
-fun Rx707Header(modifier: Modifier = Modifier, compact: Boolean = false) {
+fun Rx707Header(
+    modifier: Modifier = Modifier,
+    compact: Boolean = false,
+    isCastConnected: Boolean = false,
+    castDeviceName: String? = null,
+    onCastClick: (() -> Unit)? = null,
+) {
     Row(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.Top,
@@ -180,6 +187,40 @@ fun Rx707Header(modifier: Modifier = Modifier, compact: Boolean = false) {
             )
             Spacer(Modifier.height(2.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (onCastClick != null) {
+                    Box(
+                        Modifier
+                            .border(
+                                1.dp,
+                                if (isCastConnected) Color(0xFF1DB954) else Color(0xFFB8BDC4),
+                                RoundedCornerShape(50)
+                            )
+                            .background(
+                                if (isCastConnected) Color(0xFF10281E) else Color.Transparent,
+                                RoundedCornerShape(50)
+                            )
+                            .clickable(onClick = onCastClick)
+                            .padding(horizontal = 6.dp, vertical = 1.5.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(
+                                "⎚",
+                                fontSize = if (compact) 8.sp else 9.5.sp,
+                                color = if (isCastConnected) Color(0xFF1DB954) else Color(0xFFC8CDD4)
+                            )
+                            Text(
+                                if (isCastConnected) castDeviceName?.take(10) ?: "CAST" else "CAST",
+                                style = TextStyle(
+                                    fontFamily = FontFamily.SansSerif,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = if (compact) 6.5.sp else 7.5.sp,
+                                    letterSpacing = 0.8.sp,
+                                    color = if (isCastConnected) Color(0xFF80E8A8) else Color(0xFFC8CDD4),
+                                ),
+                            )
+                        }
+                    }
+                }
                 Box(
                     Modifier
                         .border(1.dp, Color(0xFFB8BDC4), RoundedCornerShape(50))

@@ -87,6 +87,8 @@ fun Rx707LogicPod(
     onToggleHold: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     inverted: Boolean = false,
+    onRewindHold: ((Boolean) -> Unit)? = null,
+    onFastForwardHold: ((Boolean) -> Unit)? = null,
 ) {
     val t = ui.transport
     val hold = ui.holdLocked
@@ -188,6 +190,7 @@ fun Rx707LogicPod(
                         latched = t == Transport.REWINDING,
                         locked = hold,
                         onPress = onRewind,
+                        onHold = onRewindHold,
                         width = 48.dp,
                         height = 48.dp,
                         labelAngle = -14f,
@@ -205,6 +208,7 @@ fun Rx707LogicPod(
                         latched = t == Transport.FAST_FORWARDING,
                         locked = hold,
                         onPress = onFastForward,
+                        onHold = onFastForwardHold,
                         width = 48.dp,
                         height = 48.dp,
                         labelAngle = -7f,
@@ -338,12 +342,14 @@ fun ChromeLogicButton(
     height: Dp,
     modifier: Modifier = Modifier,
     labelAngle: Float = 0f,
+    onHold: ((Boolean) -> Unit)? = null,
 ) {
     var pressed by remember { mutableStateOf(false) }
     val deckHaptics = LocalDeckHaptics.current
     val sounds = LocalMechSounds.current
     val haptics = LocalHaptics.current
     val action by rememberUpdatedState(onPress)
+    val holdAction by rememberUpdatedState(onHold)
     val measurer = rememberTextMeasurer()
 
     val depth by animateFloatAsState(
@@ -373,9 +379,16 @@ fun ChromeLogicButton(
                     pressed = true
                     if (haptics) deckHaptics?.tap()
                     sounds?.keyDown()
-                    action()
+                    if (holdAction != null) {
+                        holdAction?.invoke(true)
+                    } else {
+                        action()
+                    }
                     tryAwaitRelease()
                     pressed = false
+                    if (holdAction != null) {
+                        holdAction?.invoke(false)
+                    }
                     if (haptics) deckHaptics?.tap()
                     sounds?.keyUp()
                 })

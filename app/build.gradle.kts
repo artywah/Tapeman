@@ -97,4 +97,7 @@ dependencies {
     implementation(fileTree("libs") { include("*.aar", "*.jar") })
     // MusicKit's sign-in screen uses an AppCompat theme.
     implementation("androidx.appcompat:appcompat:1.8.0")
+
+    // Google Cast V2 client
+    implementation("de.sfuhrm:chromecast-java-api-v2:0.12.13")
 }

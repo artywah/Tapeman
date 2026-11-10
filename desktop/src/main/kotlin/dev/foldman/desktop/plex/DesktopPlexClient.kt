@@ -254,7 +254,7 @@ class DesktopPlexClient(
         }
     }
 
-    suspend fun fetchRecentAlbums(limit: Int = 30): List<PlexAlbum> = withContext(Dispatchers.IO) {
+    suspend fun fetchRecentAlbums(limit: Int = 50): List<PlexAlbum> = withContext(Dispatchers.IO) {
         if (!isConfigured()) return@withContext emptyList()
         val sId = resolveSectionId()
         val path = "/library/sections/$sId/all?type=9&sort=addedAt:desc&X-Plex-Container-Start=0&X-Plex-Container-Size=$limit"
@@ -265,18 +265,24 @@ class DesktopPlexClient(
 
     suspend fun fetchAllAlbums(
         searchQuery: String = "",
+        letter: String? = null,
         start: Int = 0,
-        limit: Int = 100,
+        limit: Int = 200,
     ): List<PlexAlbum> = withContext(Dispatchers.IO) {
         if (!isConfigured()) return@withContext emptyList()
         val sId = resolveSectionId()
         val path = buildString {
-            append("/library/sections/$sId/all?type=9")
-            if (searchQuery.isNotBlank()) {
-                val q = URLEncoder.encode(searchQuery.trim(), StandardCharsets.UTF_8.name())
-                append("&title=$q")
+            if (letter != null && searchQuery.isBlank()) {
+                val enc = if (letter == "#") "%23" else URLEncoder.encode(letter, StandardCharsets.UTF_8.name())
+                append("/library/sections/$sId/firstCharacter/$enc?type=9&sort=titleSort:asc")
             } else {
-                append("&sort=titleSort:asc")
+                append("/library/sections/$sId/all?type=9")
+                if (searchQuery.isNotBlank()) {
+                    val q = URLEncoder.encode(searchQuery.trim(), StandardCharsets.UTF_8.name())
+                    append("&title=$q")
+                } else {
+                    append("&sort=artist.titleSort:asc,titleSort:asc")
+                }
             }
             append("&X-Plex-Container-Start=$start&X-Plex-Container-Size=$limit")
         }
@@ -285,10 +291,27 @@ class DesktopPlexClient(
         parseAlbums(meta)
     }
 
-    suspend fun fetchArtists(limit: Int = 100): List<PlexArtist> = withContext(Dispatchers.IO) {
+    suspend fun fetchArtists(
+        searchQuery: String = "",
+        letter: String? = null,
+        start: Int = 0,
+        limit: Int = if (letter != null) 1000 else 200,
+    ): List<PlexArtist> = withContext(Dispatchers.IO) {
         if (!isConfigured()) return@withContext emptyList()
         val sId = resolveSectionId()
-        val path = "/library/sections/$sId/all?type=8&sort=titleSort:asc&X-Plex-Container-Start=0&X-Plex-Container-Size=$limit"
+        val path = buildString {
+            if (letter != null && searchQuery.isBlank()) {
+                val enc = if (letter == "#") "%23" else URLEncoder.encode(letter, StandardCharsets.UTF_8.name())
+                append("/library/sections/$sId/firstCharacter/$enc?type=8&sort=titleSort:asc")
+            } else {
+                append("/library/sections/$sId/all?type=8&sort=titleSort:asc")
+                if (searchQuery.isNotBlank()) {
+                    val q = URLEncoder.encode(searchQuery.trim(), StandardCharsets.UTF_8.name())
+                    append("&title=$q")
+                }
+            }
+            append("&X-Plex-Container-Start=$start&X-Plex-Container-Size=$limit")
+        }
         val json = runCatching { getJson(path) }.getOrNull() ?: return@withContext emptyList()
         val meta = json.optJSONObject("MediaContainer")?.optJSONArray("Metadata") ?: return@withContext emptyList()
         buildList {

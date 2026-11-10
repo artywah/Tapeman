@@ -114,6 +114,8 @@ fun FoldmanScreen(
     var shelfOpen by rememberSaveable { mutableStateOf(false) }
     var cassetteDoorOpen by rememberSaveable { mutableStateOf(false) }
     var shellInspectorOpen by rememberSaveable { mutableStateOf(false) }
+    var castSheetOpen by rememberSaveable { mutableStateOf(false) }
+    val connectedCastDevice by vm.castManager.connectedDevice.collectAsStateWithLifecycle()
     val feel by rememberUpdatedState(ui)
 
     // A new tape drops into the deck whenever the source changes (and when the app opens).
@@ -268,6 +270,7 @@ fun FoldmanScreen(
                     onCloseDoor = {},
                     modifier = Modifier.fillMaxSize(),
                     onOpenInspector = { shellInspectorOpen = true },
+                    onCastClick = { castSheetOpen = true },
                 )
                 Posture.Unfolded -> Row(
                     Modifier
@@ -304,6 +307,7 @@ fun FoldmanScreen(
                             .weight(1f)
                             .fillMaxHeight(),
                         onOpenInspector = { shellInspectorOpen = true },
+                        onCastClick = { castSheetOpen = true },
                     )
                 }
                 Posture.Tabletop -> {
@@ -333,6 +337,7 @@ fun FoldmanScreen(
                                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
                                 .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 8.dp),
                             onOpenInspector = { shellInspectorOpen = true },
+                            onCastClick = { castSheetOpen = true },
                         )
                         Spacer(Modifier.height(gap))
                         Row(
@@ -388,6 +393,12 @@ fun FoldmanScreen(
                     onDismiss = { shellInspectorOpen = false },
                 )
             }
+            if (castSheetOpen) {
+                CastDeviceSheet(
+                    castManager = vm.castManager,
+                    onDismiss = { castSheetOpen = false },
+                )
+            }
 
             AnimatedVisibility(
                 visible = showVersionBadge,
@@ -414,7 +425,7 @@ fun FoldmanScreen(
                                 .background(Color(0xFF4CAF50), CircleShape)
                         )
                         Text(
-                            "TAPEMAN v0.2.1",
+                            "TAPEMAN v0.5.0",
                             style = EngravedCaps.copy(fontSize = 11.sp, color = Color(0xFFF0F3F8), letterSpacing = 1.5.sp),
                         )
                     }
@@ -471,6 +482,7 @@ private fun WalkmanPlayerUnit(
     onCloseDoor: () -> Unit,
     modifier: Modifier,
     onOpenInspector: () -> Unit = {},
+    onCastClick: () -> Unit = {},
 ) {
     BoxWithConstraints(modifier) {
         val isPortraitWindow = maxHeight > maxWidth
@@ -793,11 +805,15 @@ private fun WalkmanPlayerUnit(
                     )
 
                     // C. Branding header placed near the center fold, inset neatly from both cover edges
+                    val connectedCastDevice by vm.castManager.connectedDevice.collectAsStateWithLifecycle()
                     Rx707Header(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .padding(bottom = 10.dp, start = 20.dp, end = 20.dp),
                         compact = true,
+                        isCastConnected = connectedCastDevice != null,
+                        castDeviceName = connectedCastDevice?.name,
+                        onCastClick = onCastClick,
                     )
 
                     // D. Curved Hammer-Tone Gunmetal Logic Control Pod mounted along the leading edge!

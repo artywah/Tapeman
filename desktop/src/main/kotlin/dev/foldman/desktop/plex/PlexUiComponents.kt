@@ -10,6 +10,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,10 +27,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -952,6 +955,11 @@ fun PlexMusicBrowser(
     var selectedAlbum by remember { mutableStateOf<PlexAlbum?>(null) }
     var albumTracks by remember { mutableStateOf<List<LocalTrack>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
+    var canLoadMore by remember { mutableStateOf(false) }
+    var loadingMore by remember { mutableStateOf(false) }
+
+    val letters = remember { listOf("ALL", "#") + ('A'..'Z').map { it.toString() } }
+    var selectedLetter by remember { mutableStateOf<String?>(null) }
 
     // Multi-library switcher list
     var availableLibraries by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
@@ -959,8 +967,12 @@ fun PlexMusicBrowser(
     val scope = rememberCoroutineScope()
     val isConfigured = currentConfig != null && currentConfig.serverUrl.isNotBlank() && currentConfig.serverToken.isNotBlank()
 
-    fun loadCurrentTab() {
+    fun loadCurrentTab(resetLetter: Boolean = false) {
         if (!isConfigured) return
+        if (resetLetter) {
+            selectedLetter = null
+        }
+        val activeLetter = if (selectedLetter == "ALL") null else selectedLetter
         scope.launch {
             loading = true
             try {
@@ -972,25 +984,69 @@ fun PlexMusicBrowser(
                 when (currentTab) {
                     PlexBrowserTab.HOME -> {
                         homeData = client.fetchHomeData()
+                        canLoadMore = false
                     }
                     PlexBrowserTab.PLAYLISTS -> {
                         playlists = client.fetchPlaylists(searchQuery)
+                        canLoadMore = false
                     }
                     PlexBrowserTab.RECENT -> {
-                        recentAlbums = client.fetchRecentAlbums()
+                        recentAlbums = client.fetchRecentAlbums(50)
+                        canLoadMore = false
                     }
                     PlexBrowserTab.ALBUMS -> {
-                        allAlbums = client.fetchAllAlbums(searchQuery)
+                        val items = client.fetchAllAlbums(searchQuery, letter = activeLetter, start = 0, limit = 200)
+                        allAlbums = items
+                        canLoadMore = items.size >= 200
                     }
                     PlexBrowserTab.ARTISTS -> {
-                        artists = client.fetchArtists()
+                        val items = client.fetchArtists(searchQuery, letter = activeLetter, start = 0, limit = if (activeLetter != null) 1000 else 200)
+                        artists = items
+                        canLoadMore = items.size >= 200
                     }
                     PlexBrowserTab.SEARCH -> {
-                        allAlbums = client.fetchAllAlbums(searchQuery)
+                        val items = client.fetchAllAlbums(searchQuery, letter = activeLetter, start = 0, limit = 200)
+                        allAlbums = items
+                        canLoadMore = items.size >= 200
                     }
                 }
             } finally {
                 loading = false
+            }
+        }
+    }
+
+    fun loadMore() {
+        if (loading || loadingMore || !canLoadMore) return
+        val activeLetter = if (selectedLetter == "ALL") null else selectedLetter
+        scope.launch {
+            loadingMore = true
+            try {
+                when (currentTab) {
+                    PlexBrowserTab.ALBUMS, PlexBrowserTab.SEARCH -> {
+                        val more = client.fetchAllAlbums(
+                            searchQuery = searchQuery,
+                            letter = activeLetter,
+                            start = allAlbums.size,
+                            limit = 150
+                        )
+                        allAlbums = allAlbums + more
+                        canLoadMore = more.size >= 150
+                    }
+                    PlexBrowserTab.ARTISTS -> {
+                        val more = client.fetchArtists(
+                            searchQuery = searchQuery,
+                            letter = activeLetter,
+                            start = artists.size,
+                            limit = 150
+                        )
+                        artists = artists + more
+                        canLoadMore = more.size >= 150
+                    }
+                    else -> {}
+                }
+            } finally {
+                loadingMore = false
             }
         }
     }
@@ -1222,6 +1278,7 @@ fun PlexMusicBrowser(
                                 )
                                 .clickable {
                                     currentTab = tab
+                                    selectedLetter = null
                                 }
                                 .padding(horizontal = 9.dp, vertical = 5.dp)
                         ) {
@@ -1231,6 +1288,44 @@ fun PlexMusicBrowser(
                                 fontSize = 11.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                             )
+                        }
+                    }
+                }
+
+                if (currentTab == PlexBrowserTab.ALBUMS || currentTab == PlexBrowserTab.ARTISTS) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        letters.forEach { l ->
+                            val isSelected = (selectedLetter == null && l == "ALL") || (selectedLetter == l)
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(if (isSelected) Color(0xFFE5A00D) else Color(0xFF1E2026))
+                                    .border(
+                                        1.dp,
+                                        if (isSelected) Color(0xFFE5A00D) else Color(0xFF2C2F38),
+                                        RoundedCornerShape(4.dp)
+                                    )
+                                    .clickable {
+                                        selectedLetter = if (l == "ALL") null else l
+                                        loadCurrentTab()
+                                    }
+                                    .padding(horizontal = 7.dp, vertical = 3.dp)
+                            ) {
+                                Text(
+                                    text = l,
+                                    color = if (isSelected) Color.Black else Color(0xFFA0A4AE),
+                                    fontSize = 10.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                )
+                            }
                         }
                     }
                 }
@@ -1249,6 +1344,7 @@ fun PlexMusicBrowser(
                             value = searchQuery,
                             onValueChange = {
                                 searchQuery = it
+                                selectedLetter = null
                                 loadCurrentTab()
                             },
                             singleLine = true,
@@ -1548,6 +1644,7 @@ fun PlexMusicBrowser(
                                     .border(1.dp, Color(0xFF282B34), RoundedCornerShape(8.dp))
                                     .clickable {
                                         searchQuery = artist.name
+                                        selectedLetter = null
                                         currentTab = PlexBrowserTab.ALBUMS
                                         loadCurrentTab()
                                     }
@@ -1570,6 +1667,25 @@ fun PlexMusicBrowser(
                                         fontWeight = FontWeight.Bold,
                                         maxLines = 1
                                     )
+                                }
+                            }
+                        }
+                        if (canLoadMore && artists.isNotEmpty()) {
+                            item(span = { GridItemSpan(maxLineSpan) }) {
+                                LaunchedEffect(artists.size) {
+                                    loadMore()
+                                }
+                                if (loadingMore) {
+                                    Box(
+                                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        CircularProgressIndicator(
+                                            color = Color(0xFFE5A00D),
+                                            modifier = Modifier.size(20.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -1625,6 +1741,25 @@ fun PlexMusicBrowser(
                                         fontSize = 10.sp,
                                         maxLines = 1
                                     )
+                                }
+                            }
+                        }
+                        if (canLoadMore && currentTab != PlexBrowserTab.RECENT && itemsToDisplay.isNotEmpty()) {
+                            item(span = { GridItemSpan(maxLineSpan) }) {
+                                LaunchedEffect(itemsToDisplay.size) {
+                                    loadMore()
+                                }
+                                if (loadingMore) {
+                                    Box(
+                                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        CircularProgressIndicator(
+                                            color = Color(0xFFE5A00D),
+                                            modifier = Modifier.size(20.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                    }
                                 }
                             }
                         }

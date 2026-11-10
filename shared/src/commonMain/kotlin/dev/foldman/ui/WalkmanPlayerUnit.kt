@@ -73,6 +73,8 @@ fun WalkmanPlayerUnit(
     onOpenInspector: () -> Unit = {},
     modifier: Modifier = Modifier,
     forcePortrait: Boolean? = null,
+    onRewindHold: ((Boolean) -> Unit)? = null,
+    onFastForwardHold: ((Boolean) -> Unit)? = null,
 ) {
     BoxWithConstraints(modifier) {
         val isPortraitWindow = forcePortrait ?: (maxHeight > maxWidth)
@@ -408,6 +410,8 @@ fun WalkmanPlayerUnit(
                         ui = ui,
                         onRewind = onRewind,
                         onFastForward = onFastForward,
+                        onRewindHold = onRewindHold,
+                        onFastForwardHold = onFastForwardHold,
                         onStop = {
                             if (ui.transport == Transport.STOPPED) {
                                 onToggleDoor()
