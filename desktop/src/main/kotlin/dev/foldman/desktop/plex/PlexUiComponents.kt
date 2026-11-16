@@ -941,6 +941,8 @@ fun PlexMusicBrowser(
     onTrackSelected: (LocalTrack, List<LocalTrack>, PlexAlbum) -> Unit,
     onPlayAlbumDirectly: (PlexAlbum) -> Unit = {},
     onOpenConnectDialog: () -> Unit,
+    activeTrackUri: String? = null,
+    navigateToAlbumRequest: Pair<PlexAlbum, Int>? = null,
     modifier: Modifier = Modifier,
 ) {
     var currentTab by remember { mutableStateOf(PlexBrowserTab.HOME) }
@@ -976,6 +978,13 @@ fun PlexMusicBrowser(
             albumTracks = client.fetchTracks(album)
             loading = false
         }
+    }
+
+    LaunchedEffect(navigateToAlbumRequest) {
+        val req = navigateToAlbumRequest ?: return@LaunchedEffect
+        selectedArtist = null
+        artistAlbums = emptyList()
+        openAlbum(req.first)
     }
 
     fun openArtist(artist: PlexArtist) {
@@ -1176,11 +1185,16 @@ fun PlexMusicBrowser(
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         itemsIndexed(albumTracks) { index, track ->
+                            val isCurrent = activeTrackUri != null && track.uri == activeTrackUri
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(Color(0xFF191B20))
+                                    .background(if (isCurrent) Color(0xFF232118) else Color(0xFF191B20))
+                                    .then(
+                                        if (isCurrent) Modifier.border(1.dp, Color(0xFFE5A00D).copy(alpha = 0.55f), RoundedCornerShape(6.dp))
+                                        else Modifier
+                                    )
                                     .clickable {
                                         selectedAlbum?.let { alb ->
                                             onTrackSelected(track, albumTracks, alb)
@@ -1195,7 +1209,7 @@ fun PlexMusicBrowser(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = "%02d".format(index + 1),
+                                        text = if (isCurrent) "▶" else "%02d".format(index + 1),
                                         color = Color(0xFFE5A00D),
                                         fontSize = 11.sp,
                                         fontFamily = FontFamily.Monospace,
@@ -1204,9 +1218,9 @@ fun PlexMusicBrowser(
                                     Column {
                                         Text(
                                             text = track.title,
-                                            color = Color.White,
+                                            color = if (isCurrent) Color(0xFFE5A00D) else Color.White,
                                             fontSize = 12.sp,
-                                            fontWeight = FontWeight.Medium,
+                                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
                                             maxLines = 1
                                         )
                                         Text(

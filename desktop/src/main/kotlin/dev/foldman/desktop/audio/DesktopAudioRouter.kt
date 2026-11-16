@@ -87,12 +87,12 @@ class DesktopAudioRouter(
         }
     }
 
-    fun setTrackInfo(title: String, artist: String, album: String, coverUrl: String?) {
+    fun setTrackInfo(title: String, artist: String, album: String, coverUrl: String?, durationMs: Long = 0L) {
         lastTrackTitle = title
         lastTrackArtist = artist
         lastAlbumTitle = album
         lastCoverUrl = coverUrl
-        castBackend.setTrackMetadata(title, artist, album, coverUrl)
+        castBackend.setTrackMetadata(title, artist, album, coverUrl, durationMs)
     }
 
     var lastError: String? = null

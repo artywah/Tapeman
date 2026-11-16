@@ -43,6 +43,7 @@ class GoogleCastAudioBackend : AudioBackend {
     private var activeDevice: AudioOutputDevice? = null
     private var lastUrl: String? = null
     private var currentAppId: String = TAPEMAN_APP_ID
+    @Volatile private var trackStartedPlaying = false
     var lastErrorMessage: String? = null
 
     fun setLastUrl(url: String) {
@@ -55,11 +56,14 @@ class GoogleCastAudioBackend : AudioBackend {
     var currentAlbum: String = ""
     var currentCoverUrl: String? = null
 
-    fun setTrackMetadata(title: String, artist: String, album: String, coverUrl: String?) {
+    fun setTrackMetadata(title: String, artist: String, album: String, coverUrl: String?, durationMs: Long = 0L) {
         currentTrackTitle = title
         currentArtist = artist
         currentAlbum = album
         currentCoverUrl = coverUrl
+        if (durationMs > 0L) {
+            _durationMs.value = durationMs
+        }
     }
 
     private fun resolveIpv4Direct(host: String): String? {
@@ -313,12 +317,53 @@ class GoogleCastAudioBackend : AudioBackend {
                     if (cast.isConnected) {
                         val mediaStatus = cast.mediaStatus
                         if (mediaStatus != null) {
-                            _isPlaying.value = mediaStatus.playerState == MediaStatus.PlayerState.PLAYING
-                            _currentPositionMs.value = (mediaStatus.currentTime * 1000).toLong()
                             val dur = mediaStatus.media?.duration
                             if (dur != null && dur > 0) {
                                 _durationMs.value = (dur * 1000).toLong()
                             }
+
+                            val state = mediaStatus.playerState
+                            val isFinished = state == MediaStatus.PlayerState.IDLE &&
+                                (mediaStatus.idleReason == MediaStatus.IdleReason.FINISHED ||
+                                 mediaStatus.idleReason == MediaStatus.IdleReason.COMPLETED)
+
+                            when {
+                                state == MediaStatus.PlayerState.PLAYING -> {
+                                    trackStartedPlaying = true
+                                    _isPlaying.value = true
+                                    _currentPositionMs.value = (mediaStatus.currentTime * 1000).toLong()
+                                }
+                                state == MediaStatus.PlayerState.PAUSED -> {
+                                    _isPlaying.value = false
+                                    _currentPositionMs.value = (mediaStatus.currentTime * 1000).toLong()
+                                }
+                                state == MediaStatus.PlayerState.BUFFERING || state == MediaStatus.PlayerState.LOADING -> {
+                                    // Keep current position/playing state during brief buffering
+                                }
+                                isFinished && trackStartedPlaying -> {
+                                    trackStartedPlaying = false
+                                    if (_durationMs.value > 0L) {
+                                        _currentPositionMs.value = _durationMs.value
+                                    }
+                                    _isPlaying.value = false
+                                }
+                                state == MediaStatus.PlayerState.IDLE -> {
+                                    if (trackStartedPlaying && mediaStatus.idleReason != MediaStatus.IdleReason.CANCELLED) {
+                                        trackStartedPlaying = false
+                                        if (_durationMs.value > 0L) {
+                                            _currentPositionMs.value = _durationMs.value
+                                        }
+                                    }
+                                    _isPlaying.value = false
+                                }
+                            }
+                        } else if (trackStartedPlaying) {
+                            // Receiver cleared mediaStatus after finishing playback
+                            trackStartedPlaying = false
+                            if (_durationMs.value > 0L) {
+                                _currentPositionMs.value = _durationMs.value
+                            }
+                            _isPlaying.value = false
                         }
                     }
                 } catch (_: Throwable) {}
@@ -328,6 +373,8 @@ class GoogleCastAudioBackend : AudioBackend {
 
     override fun play(url: String, headers: Map<String, String>) {
         lastUrl = url
+        trackStartedPlaying = false
+        _currentPositionMs.value = 0L
         scope.launch {
             try {
                 var cast = client
@@ -403,6 +450,7 @@ class GoogleCastAudioBackend : AudioBackend {
     }
 
     override fun stop() {
+        trackStartedPlaying = false
         scope.launch {
             try {
                 client?.stopApp()

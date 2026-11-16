@@ -128,6 +128,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
     )
     private var plexJob: Job? = null
     private var plexLoadedTracks: List<LocalTrack> = emptyList()
+    private var plexPlayingAlbum: PlexAlbum? = null
 
     private val spotify = MutableStateFlow(
         SpotifyUi(
@@ -773,6 +774,27 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         tick()
     }
 
+    fun navigateToNowPlaying() {
+        val currentUi = ui.value
+        if (currentUi.source == Source.PLEX) {
+            val currTrack = currentPlexTrack()
+            val targetAlbum = when {
+                currTrack?.albumRatingKey != null -> PlexAlbum(
+                    id = currTrack.albumRatingKey,
+                    title = currTrack.folder.ifBlank { currentUi.album },
+                    artist = currTrack.artist.orEmpty(),
+                    coverUrl = currTrack.coverUri?.toString(),
+                )
+                plexPlayingAlbum != null -> plexPlayingAlbum
+                else -> null
+            }
+            if (targetAlbum != null) {
+                plex.value = plex.value.copy(openArtist = null, artistAlbums = emptyList())
+                openPlexAlbum(targetAlbum)
+            }
+        }
+    }
+
     fun playPlexAlbum(album: PlexAlbum? = plex.value.openAlbum, startIndex: Int = 0) {
         val targetAlbum = album ?: return
         selectSource(Source.PLEX)
@@ -793,6 +815,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
                 tick()
                 return@launch
             }
+            plexPlayingAlbum = targetAlbum
             plexLoadedTracks = albumTracks
             if (winding != 0) finishWinding()
             stopped = false

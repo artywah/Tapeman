@@ -212,6 +212,7 @@ fun UnfoldedMusicHub(
                     .clip(RoundedCornerShape(14.dp))
                     .background(Color(0xFF141619))
                     .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(14.dp))
+                    .clickable(enabled = ui.title.isNotBlank()) { actions.navigateToNowPlaying() }
                     .padding(10.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,

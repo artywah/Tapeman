@@ -1,6 +1,7 @@
 package dev.foldman.desktop
 
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -38,10 +39,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -202,6 +206,9 @@ fun TapemanDesktopApp(
     var currentQueue by remember { mutableStateOf<List<LocalTrack>>(emptyList()) }
     var currentTrackIndex by remember { mutableIntStateOf(0) }
     var currentAlbum by remember { mutableStateOf<PlexAlbum?>(null) }
+    var currentTrackDurationMs by remember { mutableStateOf(0L) }
+    var navigateToAlbumRequest by remember { mutableStateOf<Pair<PlexAlbum, Int>?>(null) }
+    var navCounter by remember { mutableIntStateOf(0) }
 
     // Audio engine state bindings
     val isPlaying by audioBackend.isPlaying.collectAsState()
@@ -221,7 +228,12 @@ fun TapemanDesktopApp(
 
     val displayPosMs = if (winding != 0) windPosMs else audioPosMs
     val positionMs = if (activeTrackUrl != null) displayPosMs else 46000L
-    val durationMs = if (activeTrackUrl != null && audioDurMs > 0L) audioDurMs else 240000L
+    val effectiveDurMs = when {
+        activeTrackUrl != null && audioDurMs > 0L -> audioDurMs
+        activeTrackUrl != null && currentTrackDurationMs > 0L -> currentTrackDurationMs
+        else -> 0L
+    }
+    val durationMs = if (effectiveDurMs > 0L) effectiveDurMs else 240000L
 
     // Determine current transport state
     val transport = when {
@@ -361,13 +373,17 @@ fun TapemanDesktopApp(
         queue: List<LocalTrack> = currentQueue,
         index: Int = 0
     ) {
-        val resolvedAlbum = album ?: PlexAlbum(
-            id = track.ratingKey ?: "sonic_${track.title.hashCode()}",
-            title = track.album.ifBlank { "Sonic DJ Flow" },
-            artist = track.artist.ifBlank { "Various Artists" },
-            coverUrl = track.coverUri,
-            trackCount = queue.size
-        )
+        val resolvedAlbum = if (album != null && (track.albumRatingKey == null || album.id == track.albumRatingKey)) {
+            album
+        } else {
+            PlexAlbum(
+                id = track.albumRatingKey ?: track.ratingKey ?: "sonic_${track.title.hashCode()}",
+                title = track.album.ifBlank { "Sonic DJ Flow" },
+                artist = track.artist.ifBlank { "Various Artists" },
+                coverUrl = track.coverUri,
+                trackCount = queue.size
+            )
+        }
         trackTitle = track.title
         trackArtist = track.artist
         albumTitle = resolvedAlbum.title
@@ -375,12 +391,14 @@ fun TapemanDesktopApp(
         currentQueue = queue
         currentTrackIndex = index
         currentAlbum = resolvedAlbum
+        currentTrackDurationMs = track.durationMs
 
         audioBackend.setTrackInfo(
             title = track.title,
             artist = track.artist,
             album = resolvedAlbum.title,
-            coverUrl = track.coverUri ?: resolvedAlbum.coverUrl
+            coverUrl = track.coverUri ?: resolvedAlbum.coverUrl,
+            durationMs = track.durationMs
         )
 
         mechSounds.keyDown()
@@ -478,8 +496,8 @@ fun TapemanDesktopApp(
     }
 
     // Auto-advance to next track when song finishes (or continuously advance via Sonic DJ)
-    LaunchedEffect(isPlaying, audioPosMs, audioDurMs, hasNext, isSonicDjActive) {
-        val atEnd = audioDurMs > 0 && (audioPosMs >= audioDurMs - 1500L || (audioPosMs > 0 && audioPosMs == audioDurMs))
+    LaunchedEffect(isPlaying, audioPosMs, effectiveDurMs, hasNext, isSonicDjActive) {
+        val atEnd = effectiveDurMs > 0 && (audioPosMs >= effectiveDurMs - 1500L || (audioPosMs > 0 && audioPosMs == effectiveDurMs))
         if (!isPlaying && atEnd && (hasNext || isSonicDjActive)) {
             playNext()
         }
@@ -934,6 +952,8 @@ fun TapemanDesktopApp(
                             },
                             onPlayAlbumDirectly = ::playAlbumDirectly,
                             onOpenConnectDialog = { showPlexDialog = true },
+                            activeTrackUri = activeTrackUrl,
+                            navigateToAlbumRequest = navigateToAlbumRequest,
                             modifier = Modifier
                                 .weight(1.05f)
                                 .fillMaxHeight()
@@ -1094,6 +1114,106 @@ fun TapemanDesktopApp(
                                     }
                                 }
                             }
+
+                            Spacer(Modifier.height(8.dp))
+
+                            // Now Playing Card (matches mobile view; click to jump back to album)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color(0xFF141619))
+                                    .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(10.dp))
+                                    .clickable(enabled = currentAlbum != null && activeTrackUrl != null) {
+                                        currentAlbum?.let { alb ->
+                                            mechSounds.keyDown()
+                                            navigateToAlbumRequest = alb to (++navCounter)
+                                        }
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                // Album Art Square
+                                Box(
+                                    modifier = Modifier
+                                        .size(46.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Brush.linearGradient(listOf(ui.label.stripe, ui.label.stripe2))),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    albumArtwork?.let { bmp ->
+                                        Image(bmp, "Album art", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                                    } ?: Text("♪", color = Color.White.copy(alpha = 0.75f), fontSize = 20.sp)
+                                }
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (activeTrackUrl != null) trackTitle else "No tape playing",
+                                        color = Color.White,
+                                        fontSize = 12.5.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    val byLine = if (activeTrackUrl != null) {
+                                        listOf(trackArtist, albumTitle).filter { it.isNotBlank() }.joinToString(" · ")
+                                    } else {
+                                        "Select a track or album from your library"
+                                    }
+                                    Text(
+                                        text = byLine,
+                                        color = Color(0xFF8E93A0),
+                                        fontSize = 10.5.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Spacer(Modifier.height(4.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        val dispPos = if (activeTrackUrl != null) positionMs else 0L
+                                        val dispDur = if (activeTrackUrl != null && effectiveDurMs > 0L) effectiveDurMs else 0L
+                                        Text(
+                                            text = "${formatTimeMs(dispPos)} / ${formatTimeMs(dispDur)}",
+                                            color = Color(0xFFA0A4AE),
+                                            fontSize = 10.sp,
+                                            fontFamily = FontFamily.Monospace,
+                                        )
+                                        Text(
+                                            text = buildString {
+                                                append(if (currentDevice.type != DeviceType.MAC) currentDevice.name.uppercase() else "PLEX")
+                                                if (dbbEnabled) append(" · DBB")
+                                                if (avlsEnabled) append(" · AVLS")
+                                            },
+                                            color = Color(0xFFE5A00D),
+                                            fontSize = 9.5.sp,
+                                            fontFamily = FontFamily.Monospace,
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                    }
+                                    Spacer(Modifier.height(3.dp))
+                                    val progressFraction = if (activeTrackUrl != null && effectiveDurMs > 0L) {
+                                        (positionMs.toFloat() / effectiveDurMs.toFloat()).coerceIn(0f, 1f)
+                                    } else 0f
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(3.dp)
+                                            .clip(RoundedCornerShape(2.dp))
+                                            .background(Color.White.copy(alpha = 0.12f)),
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth(progressFraction)
+                                                .fillMaxHeight()
+                                                .background(Color(0xFFE5A00D)),
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -1134,4 +1254,11 @@ fun TapemanDesktopApp(
             }
         }
     }
+}
+
+private fun formatTimeMs(ms: Long): String {
+    val totalSec = (ms / 1000L).coerceAtLeast(0L)
+    val min = totalSec / 60L
+    val sec = totalSec % 60L
+    return "%02d:%02d".format(min, sec)
 }

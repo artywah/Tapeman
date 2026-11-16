@@ -470,6 +470,7 @@ class DesktopPlexClient(
             val key = t.optString("ratingKey").ifBlank {
                 t.optString("key").removePrefix("/library/metadata/").takeWhile { it.isDigit() }
             }
+            val albumKey = t.optString("parentRatingKey").takeIf { it.isNotBlank() }
             val title = t.optString("title", "Track ${i + 1}").trim()
             val artist = t.optString("originalTitle")
                 .ifBlank { t.optString("grandparentTitle") }
@@ -497,7 +498,8 @@ class DesktopPlexClient(
                     durationMs = duration,
                     coverUri = coverUrl,
                     folder = albumTitle,
-                    ratingKey = key.takeIf { it.isNotBlank() }
+                    ratingKey = key.takeIf { it.isNotBlank() },
+                    albumRatingKey = albumKey,
                 )
             )
         }

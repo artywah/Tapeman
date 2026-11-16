@@ -56,6 +56,7 @@ class ShelfActions(
     val installApp: (Source) -> Unit,
     val toggleCurrentFavorite: () -> Unit = {},
     val playCurrentRadio: () -> Unit = {},
+    val navigateToNowPlaying: () -> Unit = {},
     val apple: AppleActions,
     val plex: PlexActions,
     val spotify: SpotifyActions,

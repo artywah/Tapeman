@@ -62,6 +62,7 @@ class AndroidCastManager(private val context: Context) {
     private var pollJob: Job? = null
     private var currentAppId: String = TAPEMAN_APP_ID
     private var lastUrl: String? = null
+    @Volatile private var trackStartedPlaying = false
 
     // Discovered devices cache
     private val deviceMap = ConcurrentHashMap<String, CastDevice>()
@@ -258,12 +259,50 @@ class AndroidCastManager(private val context: Context) {
                     if (cast.isConnected) {
                         val status = cast.mediaStatus
                         if (status != null) {
-                            _isPlaying.value = status.playerState == MediaStatus.PlayerState.PLAYING
-                            _currentPositionMs.value = (status.currentTime * 1000).toLong()
                             val dur = status.media?.duration
                             if (dur != null && dur > 0) {
                                 _durationMs.value = (dur * 1000).toLong()
                             }
+                            val state = status.playerState
+                            val isFinished = state == MediaStatus.PlayerState.IDLE &&
+                                (status.idleReason == MediaStatus.IdleReason.FINISHED ||
+                                 status.idleReason == MediaStatus.IdleReason.COMPLETED)
+                            when {
+                                state == MediaStatus.PlayerState.PLAYING -> {
+                                    trackStartedPlaying = true
+                                    _isPlaying.value = true
+                                    _currentPositionMs.value = (status.currentTime * 1000).toLong()
+                                }
+                                state == MediaStatus.PlayerState.PAUSED -> {
+                                    _isPlaying.value = false
+                                    _currentPositionMs.value = (status.currentTime * 1000).toLong()
+                                }
+                                state == MediaStatus.PlayerState.BUFFERING || state == MediaStatus.PlayerState.LOADING -> {
+                                    // Keep current state during brief buffering
+                                }
+                                isFinished && trackStartedPlaying -> {
+                                    trackStartedPlaying = false
+                                    if (_durationMs.value > 0L) {
+                                        _currentPositionMs.value = _durationMs.value
+                                    }
+                                    _isPlaying.value = false
+                                }
+                                state == MediaStatus.PlayerState.IDLE -> {
+                                    if (trackStartedPlaying && status.idleReason != MediaStatus.IdleReason.CANCELLED) {
+                                        trackStartedPlaying = false
+                                        if (_durationMs.value > 0L) {
+                                            _currentPositionMs.value = _durationMs.value
+                                        }
+                                    }
+                                    _isPlaying.value = false
+                                }
+                            }
+                        } else if (trackStartedPlaying) {
+                            trackStartedPlaying = false
+                            if (_durationMs.value > 0L) {
+                                _currentPositionMs.value = _durationMs.value
+                            }
+                            _isPlaying.value = false
                         }
                     }
                 } catch (_: Throwable) {}
@@ -319,6 +358,8 @@ class AndroidCastManager(private val context: Context) {
         coverUrl: String?
     ) {
         lastUrl = url
+        trackStartedPlaying = false
+        _currentPositionMs.value = 0L
         scope.launch {
             try {
                 val cast = client ?: return@launch

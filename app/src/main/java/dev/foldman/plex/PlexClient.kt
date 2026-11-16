@@ -394,6 +394,7 @@ class PlexClient(
         for (i in 0 until meta.length()) {
             val t = meta.getJSONObject(i)
             val ratingKey = t.optString("ratingKey")
+            val albumRatingKey = t.optString("parentRatingKey").takeIf { it.isNotBlank() }
             val title = t.optString("title", "Track ${i + 1}").trim()
             val artist = t.optString("originalTitle")
                 .ifBlank { t.optString("grandparentTitle") }
@@ -421,6 +422,7 @@ class PlexClient(
                     folder = albumTitle,
                     coverUri = coverUri,
                     ratingKey = ratingKey,
+                    albumRatingKey = albumRatingKey,
                     isFavorite = isFav,
                 )
             )

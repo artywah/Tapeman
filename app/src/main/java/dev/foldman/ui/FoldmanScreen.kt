@@ -209,6 +209,7 @@ fun FoldmanScreen(
             openApp = vm::openSourceApp,
             installApp = onInstallApp,
             toggleCurrentFavorite = vm::toggleCurrentTrackFavorite,
+            navigateToNowPlaying = vm::navigateToNowPlaying,
             playCurrentRadio = {
                 val currentTrack = vm.currentPlexTrack()
                 currentTrack?.ratingKey?.let { rk ->

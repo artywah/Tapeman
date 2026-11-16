@@ -150,6 +150,7 @@ data class LocalTrack(
     val folder: String,
     val coverUri: Uri?,
     val ratingKey: String? = null,
+    val albumRatingKey: String? = null,
     val isFavorite: Boolean = false,
 )
 

@@ -114,6 +114,7 @@ data class LocalTrack(
     val coverUri: String? = null,
     val folder: String = "",
     val ratingKey: String? = null,
+    val albumRatingKey: String? = null,
 )
 
 data class PlexUi(
