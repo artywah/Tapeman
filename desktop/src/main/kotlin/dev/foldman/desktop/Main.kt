@@ -81,6 +81,7 @@ fun main() = application {
 
     // Default window opens at the ideal 2:1 landscape ratio (1200dp x 590dp) matching user screenshot
     val windowState = rememberWindowState(width = 1200.dp, height = 590.dp)
+    var isMiniPlayer by remember { mutableStateOf(false) }
 
     val appIcon = remember {
         runCatching {
@@ -114,11 +115,11 @@ fun main() = application {
             mechSounds.release()
             exitApplication()
         },
-        title = "Tapeman · Retro Stereo Cassette Player",
+        title = if (isMiniPlayer) "Tapeman" else "Tapeman · Retro Stereo Cassette Player",
         icon = appIcon,
         state = windowState,
-        alwaysOnTop = false,
-        resizable = true,
+        alwaysOnTop = isMiniPlayer,
+        resizable = false,
     ) {
         MaterialTheme {
             TapemanDesktopApp(
@@ -126,6 +127,15 @@ fun main() = application {
                 audioBackend = audioBackend,
                 authService = authService,
                 plexClient = plexClient,
+                isMiniPlayer = isMiniPlayer,
+                onToggleMiniPlayer = {
+                    isMiniPlayer = !isMiniPlayer
+                    if (isMiniPlayer) {
+                        windowState.size = DpSize(470.dp, 390.dp)
+                    } else {
+                        windowState.size = DpSize(1200.dp, 590.dp)
+                    }
+                }
             )
         }
     }
@@ -137,6 +147,8 @@ fun TapemanDesktopApp(
     audioBackend: DesktopAudioRouter,
     authService: PlexAuthService,
     plexClient: DesktopPlexClient,
+    isMiniPlayer: Boolean = false,
+    onToggleMiniPlayer: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val deviceService = remember { DeviceDiscoveryService() }
@@ -343,20 +355,32 @@ fun TapemanDesktopApp(
         slideTapeIn()
     }
 
-    fun playPlexTrack(track: LocalTrack, album: PlexAlbum, queue: List<LocalTrack>, index: Int) {
+    fun playPlexTrack(
+        track: LocalTrack,
+        album: PlexAlbum? = null,
+        queue: List<LocalTrack> = currentQueue,
+        index: Int = 0
+    ) {
+        val resolvedAlbum = album ?: PlexAlbum(
+            id = track.ratingKey ?: "sonic_${track.title.hashCode()}",
+            title = track.album.ifBlank { "Sonic DJ Flow" },
+            artist = track.artist.ifBlank { "Various Artists" },
+            coverUrl = track.coverUri,
+            trackCount = queue.size
+        )
         trackTitle = track.title
         trackArtist = track.artist
-        albumTitle = album.title
+        albumTitle = resolvedAlbum.title
         activeTrackUrl = track.uri
         currentQueue = queue
         currentTrackIndex = index
-        currentAlbum = album
+        currentAlbum = resolvedAlbum
 
         audioBackend.setTrackInfo(
             title = track.title,
             artist = track.artist,
-            album = album.title,
-            coverUrl = track.coverUri ?: album.coverUrl
+            album = resolvedAlbum.title,
+            coverUrl = track.coverUri ?: resolvedAlbum.coverUrl
         )
 
         mechSounds.keyDown()
@@ -364,7 +388,7 @@ fun TapemanDesktopApp(
         audioBackend.play(track.uri)
 
         scope.launch {
-            albumArtwork = plexClient.loadArtwork(track.coverUri ?: album.coverUrl)
+            albumArtwork = plexClient.loadArtwork(track.coverUri ?: resolvedAlbum.coverUrl)
         }
     }
 
@@ -377,20 +401,37 @@ fun TapemanDesktopApp(
         }
     }
 
+    var isSonicReplenishing by remember { mutableStateOf(false) }
+
     fun toggleSonicDj() {
         mechSounds.keyDown()
         val next = !isSonicDjActive
         isSonicDjActive = next
 
-        if (next && (currentQueue.isEmpty() || activeTrackUrl == null)) {
-            // Seed acoustic sonic flow from recent or top library items
-            scope.launch {
-                val home = plexClient.fetchHomeData()
-                val seedAlbum = home.recentlyPlayed.firstOrNull() ?: home.hubs.firstOrNull()?.items?.firstOrNull()
-                if (seedAlbum != null) {
-                    val tracks = plexClient.fetchTracks(seedAlbum)
-                    if (tracks.isNotEmpty()) {
-                        playPlexTrack(tracks.first(), seedAlbum, tracks, 0)
+        if (next) {
+            val currTrack = currentQueue.getOrNull(currentTrackIndex)
+            if (currTrack != null && activeTrackUrl != null) {
+                // Sonic DJ turned on while a song is playing: fetch similar tracks to follow right after
+                scope.launch {
+                    val similar = plexClient.fetchSonicallySimilarTracks(currTrack.ratingKey, limit = 15)
+                    if (similar.isNotEmpty()) {
+                        val existingUris = setOf(currTrack.uri)
+                        val newItems = similar.filter { it.uri !in existingUris }
+                        if (newItems.isNotEmpty()) {
+                            currentQueue = currentQueue.take(currentTrackIndex + 1) + newItems
+                        }
+                    }
+                }
+            } else {
+                // Seed acoustic sonic flow from recent or top library items
+                scope.launch {
+                    val home = plexClient.fetchHomeData()
+                    val seedAlbum = home.recentlyPlayed.firstOrNull() ?: home.hubs.firstOrNull()?.items?.firstOrNull()
+                    if (seedAlbum != null) {
+                        val tracks = plexClient.fetchTracks(seedAlbum)
+                        if (tracks.isNotEmpty()) {
+                            playPlexTrack(tracks.first(), seedAlbum, tracks, 0)
+                        }
                     }
                 }
             }
@@ -401,7 +442,7 @@ fun TapemanDesktopApp(
         mechSounds.keyDown()
         if (currentQueue.isNotEmpty() && currentTrackIndex > 0) {
             val prevIdx = currentTrackIndex - 1
-            currentAlbum?.let { playPlexTrack(currentQueue[prevIdx], it, currentQueue, prevIdx) }
+            playPlexTrack(currentQueue[prevIdx], currentAlbum, currentQueue, prevIdx)
         } else if (activeTrackUrl != null) {
             audioBackend.seekTo(0L)
         }
@@ -411,29 +452,56 @@ fun TapemanDesktopApp(
         mechSounds.keyDown()
         if (currentQueue.isNotEmpty() && currentTrackIndex < currentQueue.size - 1) {
             val nextIdx = currentTrackIndex + 1
-            currentAlbum?.let { playPlexTrack(currentQueue[nextIdx], it, currentQueue, nextIdx) }
+            val nextTrack = currentQueue[nextIdx]
+            playPlexTrack(nextTrack, currentAlbum, currentQueue, nextIdx)
+        } else if (isSonicDjActive && !isSonicReplenishing) {
+            // Reached end of current queue with Sonic DJ on: fetch more immediately and play!
+            isSonicReplenishing = true
+            val curr = currentQueue.getOrNull(currentTrackIndex)
+            scope.launch {
+                try {
+                    val more = plexClient.fetchSonicallySimilarTracks(curr?.ratingKey, limit = 15)
+                    if (more.isNotEmpty()) {
+                        val existing = currentQueue.map { it.uri }.toSet()
+                        val newItems = more.filter { it.uri !in existing }
+                        val toAdd = if (newItems.isNotEmpty()) newItems else more
+                        val nextIdx = currentQueue.size
+                        val newQueue = currentQueue + toAdd
+                        currentQueue = newQueue
+                        playPlexTrack(toAdd.first(), currentAlbum, newQueue, nextIdx)
+                    }
+                } finally {
+                    isSonicReplenishing = false
+                }
+            }
         }
     }
 
-    // Auto-advance to next track when song finishes
-    LaunchedEffect(isPlaying, audioPosMs, audioDurMs) {
-        if (!isPlaying && audioDurMs > 0 && audioPosMs >= audioDurMs - 600L && hasNext) {
+    // Auto-advance to next track when song finishes (or continuously advance via Sonic DJ)
+    LaunchedEffect(isPlaying, audioPosMs, audioDurMs, hasNext, isSonicDjActive) {
+        val atEnd = audioDurMs > 0 && (audioPosMs >= audioDurMs - 1500L || (audioPosMs > 0 && audioPosMs == audioDurMs))
+        if (!isPlaying && atEnd && (hasNext || isSonicDjActive)) {
             playNext()
         }
     }
 
-    // Sonic DJ dynamic replenishment: when near end of queue, fetch more acoustic tracks
+    // Sonic DJ dynamic replenishment: when near end of queue, fetch more acoustic tracks ahead of time
     LaunchedEffect(isSonicDjActive, currentTrackIndex, currentQueue.size) {
-        if (isSonicDjActive && currentQueue.isNotEmpty() && currentTrackIndex >= currentQueue.size - 2) {
+        if (isSonicDjActive && currentQueue.isNotEmpty() && currentTrackIndex >= currentQueue.size - 2 && !isSonicReplenishing) {
             val curr = currentQueue.getOrNull(currentTrackIndex) ?: return@LaunchedEffect
             scope.launch {
-                val more = plexClient.fetchSonicallySimilarTracks(curr.uri, limit = 10)
-                if (more.isNotEmpty()) {
-                    val existing = currentQueue.map { it.uri }.toSet()
-                    val newItems = more.filter { it.uri !in existing }
-                    if (newItems.isNotEmpty()) {
-                        currentQueue = currentQueue + newItems
+                isSonicReplenishing = true
+                try {
+                    val more = plexClient.fetchSonicallySimilarTracks(curr.ratingKey, limit = 15)
+                    if (more.isNotEmpty()) {
+                        val existing = currentQueue.map { it.uri }.toSet()
+                        val newItems = more.filter { it.uri !in existing }
+                        if (newItems.isNotEmpty()) {
+                            currentQueue = currentQueue + newItems
+                        }
                     }
+                } finally {
+                    isSonicReplenishing = false
                 }
             }
         }
@@ -459,9 +527,229 @@ fun TapemanDesktopApp(
                 .background(DeckColors.Backdrop),
             contentAlignment = Alignment.Center
         ) {
-            // ==========================================
-            // FULL DUAL VIEW: LIBRARY + RETRO WALKMAN
-            // ==========================================
+            if (isMiniPlayer) {
+                // ==========================================
+                // DEDICATED SPOTIFY-STYLE MINI PLAYER VIEW
+                // ==========================================
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    // Mini Player Top Header Bar
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp, vertical = 2.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Left: Track & Artist Status with Live Playing LED
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .background(if (isPlaying) Color(0xFF4CAF50) else Color(0xFFE5A00D), CircleShape)
+                            )
+                            Text(
+                                text = listOf(ui.title, ui.artist).filter { it.isNotBlank() }.joinToString(" — ").ifBlank { "ARTY TAPEMAN" },
+                                style = androidx.compose.ui.text.TextStyle(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFD0D4DC),
+                                ),
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+
+                        Spacer(Modifier.width(8.dp))
+
+                        // Right: Sonic DJ, Device Picker, Open Library Button + Settings
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            if (isSonicDjActive) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(5.dp))
+                                        .background(Color(0xFF003840))
+                                        .border(1.dp, Color(0xFF00E5FF), RoundedCornerShape(5.dp))
+                                        .clickable { toggleSonicDj() }
+                                        .padding(horizontal = 6.dp, vertical = 3.dp)
+                                ) {
+                                    Text(
+                                        text = "🎧 DJ",
+                                        color = Color(0xFF00E5FF),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            // Device Picker icon
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(if (currentDevice.type != DeviceType.MAC) Color(0xFF10281E) else Color(0xFF22242B))
+                                    .border(
+                                        1.dp,
+                                        if (currentDevice.type != DeviceType.MAC) Color(0xFF1DB954) else Color(0xFF333640),
+                                        RoundedCornerShape(5.dp)
+                                    )
+                                    .clickable {
+                                        mechSounds.keyDown()
+                                        showDeviceDialog = true
+                                    }
+                                    .padding(horizontal = 6.dp, vertical = 3.dp)
+                            ) {
+                                Text(
+                                    text = "⎚",
+                                    color = if (currentDevice.type != DeviceType.MAC) Color(0xFF1DB954) else Color(0xFFDFDFE5),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            // Prominent Golden "Open Library" Action Button
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(Color(0xFFE5A00D))
+                                    .clickable {
+                                        mechSounds.keyDown()
+                                        onToggleMiniPlayer()
+                                    }
+                                    .padding(horizontal = 9.dp, vertical = 4.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text(
+                                        text = "⤢ Open Library",
+                                        color = Color.Black,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.SansSerif
+                                    )
+                                }
+                            }
+
+                            // Quick Settings Icon
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(Color(0xFF22242B))
+                                    .clickable {
+                                        mechSounds.keyDown()
+                                        showPlexDialog = true
+                                    }
+                                    .padding(horizontal = 6.dp, vertical = 4.dp)
+                            ) {
+                                Text("⚙", color = Color(0xFFDFDFE5), fontSize = 11.sp)
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(4.dp))
+
+                    // Player Unit fitted snuggly to window height
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        WalkmanPlayerUnit(
+                            ui = ui,
+                            anim = anim,
+                            doorOpen = cassetteDoorOpen,
+                            onToggleDoor = {
+                                cassetteDoorOpen = !cassetteDoorOpen
+                                if (cassetteDoorOpen) mechSounds.keyDown() else mechSounds.autoStop()
+                            },
+                            onCloseDoor = {
+                                if (cassetteDoorOpen) {
+                                    cassetteDoorOpen = false
+                                    mechSounds.autoStop()
+                                }
+                            },
+                            onPlayToggle = {
+                                if (isPlaying) {
+                                    mechSounds.pause()
+                                    audioBackend.pause()
+                                } else {
+                                    mechSounds.play()
+                                    if (activeTrackUrl != null) {
+                                        audioBackend.resume()
+                                    } else {
+                                        audioBackend.seekTo(0L)
+                                        audioBackend.resume()
+                                    }
+                                }
+                            },
+                            onStop = {
+                                mechSounds.autoStop()
+                                audioBackend.stop()
+                            },
+                            onRewind = {
+                                mechSounds.keyUp()
+                                val newPos = (displayPosMs - 15000L).coerceAtLeast(0L)
+                                audioBackend.seekTo(newPos)
+                            },
+                            onFastForward = {
+                                mechSounds.keyUp()
+                                val newPos = (displayPosMs + 15000L).coerceAtMost(durationMs)
+                                audioBackend.seekTo(newPos)
+                            },
+                            onRewindHold = handleRewindHold,
+                            onFastForwardHold = handleFastForwardHold,
+                            onNext = ::playNext,
+                            onPrevious = ::playPrevious,
+                            onSetVolume = {
+                                volume = it
+                                audioBackend.setVolume(it)
+                            },
+                            onToggleHold = {
+                                holdLocked = !holdLocked
+                                mechSounds.switchFlip()
+                            },
+                            onToggleDbb = {
+                                dbbEnabled = !dbbEnabled
+                                mechSounds.switchFlip()
+                            },
+                            onToggleAvls = {
+                                avlsEnabled = !avlsEnabled
+                                mechSounds.switchFlip()
+                            },
+                            onCycleShell = {
+                                val shells = CassetteShell.entries
+                                val nextIdx = (shells.indexOf(selectedShell) + 1) % shells.size
+                                selectedShell = shells[nextIdx]
+                                mechSounds.switchFlip()
+                            },
+                            onResetCounter = {
+                                mechSounds.keyDown()
+                                anim.reels.resetCounter()
+                            },
+                            modifier = Modifier.fillMaxSize(),
+                            forcePortrait = false,
+                        )
+                    }
+                }
+            } else {
+                // ==========================================
+                // FULL DUAL VIEW: LIBRARY + RETRO WALKMAN
+                // ==========================================
                 Column(
                     modifier = Modifier
                         .padding(horizontal = 14.dp, vertical = 8.dp)
@@ -557,6 +845,29 @@ fun TapemanDesktopApp(
                                     Text(
                                         text = if (currentDevice.type != DeviceType.MAC) currentDevice.name else "Devices",
                                         color = if (currentDevice.type != DeviceType.MAC) Color(0xFF1DB954) else Color(0xFFDFDFE5),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+
+                            // Mini Player Button
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Color(0xFF17181C))
+                                    .border(1.dp, Color(0xFF333640), RoundedCornerShape(6.dp))
+                                    .clickable {
+                                        mechSounds.keyDown()
+                                        onToggleMiniPlayer()
+                                    }
+                                    .padding(horizontal = 9.dp, vertical = 5.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text("▣", color = Color(0xFFDFDFE5), fontSize = 11.sp)
+                                    Text(
+                                        text = "Mini Player",
+                                        color = Color(0xFFDFDFE5),
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Medium
                                     )
@@ -786,6 +1097,7 @@ fun TapemanDesktopApp(
                         }
                     }
                 }
+            }
 
             // Spotify Connect Device Picker Dialog
             if (showDeviceDialog) {

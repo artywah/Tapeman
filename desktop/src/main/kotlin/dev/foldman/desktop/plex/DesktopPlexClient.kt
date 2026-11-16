@@ -291,6 +291,15 @@ class DesktopPlexClient(
         parseAlbums(meta)
     }
 
+    suspend fun fetchArtistAlbums(artistId: String): List<PlexAlbum> = withContext(Dispatchers.IO) {
+        if (!isConfigured()) return@withContext emptyList()
+        val cleanId = artistId.removePrefix("artist_")
+        val path = "/library/metadata/$cleanId/children"
+        val json = runCatching { getJson(path) }.getOrNull() ?: return@withContext emptyList()
+        val meta = json.optJSONObject("MediaContainer")?.optJSONArray("Metadata") ?: return@withContext emptyList()
+        parseAlbums(meta)
+    }
+
     suspend fun fetchArtists(
         searchQuery: String = "",
         letter: String? = null,
@@ -368,39 +377,54 @@ class DesktopPlexClient(
     }
 
     suspend fun fetchSonicallySimilarTracks(
-        ratingKey: String,
+        ratingKey: String?,
         limit: Int = 15,
         maxDistance: Float = 0.25f
     ): List<LocalTrack> = withContext(Dispatchers.IO) {
         if (!isConfigured()) return@withContext emptyList()
-        val cleanKey = ratingKey.removePrefix("playlist_").removePrefix("album_").removePrefix("radio_").removePrefix("artist_")
+        val cleanKey = ratingKey?.removePrefix("playlist_")?.removePrefix("album_")?.removePrefix("radio_")?.removePrefix("artist_")
+            ?.takeIf { it.isNotBlank() && it.all { c -> c.isDigit() } }
 
-        // 1. Try /nearest acoustic distance endpoint
-        val path = "/library/metadata/$cleanKey/nearest?limit=$limit&maxDistance=$maxDistance"
-        val container = runCatching { getJson(path).optJSONObject("MediaContainer") }.getOrNull()
-        val meta = container?.optJSONArray("Metadata")
-        if (meta != null && meta.length() > 0) {
-            val sonicTracks = parseTracksFromMetadata(meta, defaultAlbum = "Sonically Similar")
-            if (sonicTracks.isNotEmpty()) return@withContext sonicTracks
+        // 1. Try /nearest acoustic distance endpoint if a numeric ratingKey is present
+        if (cleanKey != null) {
+            val path = "/library/metadata/$cleanKey/nearest?limit=$limit&maxDistance=$maxDistance"
+            val container = runCatching { getJson(path).optJSONObject("MediaContainer") }.getOrNull()
+            val meta = container?.optJSONArray("Metadata")
+            if (meta != null && meta.length() > 0) {
+                val sonicTracks = parseTracksFromMetadata(meta, defaultAlbum = "Sonically Similar")
+                if (sonicTracks.isNotEmpty()) return@withContext sonicTracks
+            }
+
+            // 1b. Try station tracks for this ratingKey
+            val station = runCatching { fetchStationInternal(cleanKey, limit) }.getOrNull()
+            if (!station.isNullOrEmpty()) return@withContext station
         }
 
         // 2. Fallback: random flow from music section for continuous flow
-        val sId = resolveSectionId()
-        val randomPath = "/library/sections/$sId/all?type=10&sort=random&limit=$limit"
-        val randContainer = runCatching { getJson(randomPath).optJSONObject("MediaContainer") }.getOrNull()
-        val randMeta = randContainer?.optJSONArray("Metadata") ?: return@withContext emptyList()
-        parseTracksFromMetadata(randMeta, defaultAlbum = "Sonic Flow")
+        val sId = runCatching { resolveSectionId() }.getOrNull()
+        if (sId != null) {
+            val randomPath = "/library/sections/$sId/all?type=10&sort=random&X-Plex-Container-Start=0&X-Plex-Container-Size=$limit"
+            val randContainer = runCatching { getJson(randomPath).optJSONObject("MediaContainer") }.getOrNull()
+            val randMeta = randContainer?.optJSONArray("Metadata")
+            if (randMeta != null && randMeta.length() > 0) {
+                val randTracks = parseTracksFromMetadata(randMeta, defaultAlbum = "Sonic Flow")
+                if (randTracks.isNotEmpty()) return@withContext randTracks
+            }
+
+            // 3. Robust fallback: fetch recent tracks and shuffle
+            val fallbackPath = "/library/sections/$sId/all?type=10&sort=addedAt:desc&X-Plex-Container-Start=0&X-Plex-Container-Size=60"
+            val fbContainer = runCatching { getJson(fallbackPath).optJSONObject("MediaContainer") }.getOrNull()
+            val fbMeta = fbContainer?.optJSONArray("Metadata")
+            if (fbMeta != null && fbMeta.length() > 0) {
+                val fbTracks = parseTracksFromMetadata(fbMeta, defaultAlbum = "Sonic Flow").shuffled()
+                if (fbTracks.isNotEmpty()) return@withContext fbTracks.take(limit)
+            }
+        }
+
+        emptyList()
     }
 
-    suspend fun fetchStationTracks(ratingKey: String): List<LocalTrack> = withContext(Dispatchers.IO) {
-        if (!isConfigured()) return@withContext emptyList()
-        val cleanKey = ratingKey.removePrefix("playlist_").removePrefix("album_").removePrefix("radio_").removePrefix("artist_")
-
-        // 1. Try station tracks or sonically similar
-        val sonic = fetchSonicallySimilarTracks(cleanKey, limit = 25)
-        if (sonic.isNotEmpty()) return@withContext sonic
-
-        // 2. Try artist allLeaves or topTracks
+    private suspend fun fetchStationInternal(cleanKey: String, limit: Int): List<LocalTrack> {
         val metaJson = runCatching { getJson("/library/metadata/$cleanKey").optJSONObject("MediaContainer") }.getOrNull()
         val itemMeta = metaJson?.optJSONArray("Metadata")?.optJSONObject(0)
         val artistKey = itemMeta?.optString("grandparentRatingKey")?.takeIf { it.isNotBlank() }
@@ -412,12 +436,26 @@ class DesktopPlexClient(
         val fallbackMeta = artistTracksJson?.optJSONObject("MediaContainer")?.optJSONArray("Metadata")
         if (fallbackMeta != null && fallbackMeta.length() > 0) {
             val parsed = parseTracksFromMetadata(fallbackMeta, defaultAlbum = "Plex Radio").shuffled()
-            return@withContext parsed.take(25)
+            return parsed.take(limit)
         }
+        return emptyList()
+    }
+
+    suspend fun fetchStationTracks(ratingKey: String): List<LocalTrack> = withContext(Dispatchers.IO) {
+        if (!isConfigured()) return@withContext emptyList()
+        val cleanKey = ratingKey.removePrefix("playlist_").removePrefix("album_").removePrefix("radio_").removePrefix("artist_")
+
+        // 1. Try station tracks or sonically similar
+        val sonic = fetchSonicallySimilarTracks(cleanKey, limit = 25)
+        if (sonic.isNotEmpty()) return@withContext sonic
+
+        // 2. Try artist allLeaves or topTracks
+        val internal = fetchStationInternal(cleanKey, limit = 25)
+        if (internal.isNotEmpty()) return@withContext internal
 
         // 3. Fallback to random section tracks
-        val sId = resolveSectionId()
-        val randJson = runCatching { getJson("/library/sections/$sId/all?type=10&sort=random&limit=25") }.getOrNull()
+        val sId = runCatching { resolveSectionId() }.getOrNull() ?: return@withContext emptyList()
+        val randJson = runCatching { getJson("/library/sections/$sId/all?type=10&sort=random&X-Plex-Container-Start=0&X-Plex-Container-Size=25") }.getOrNull()
         val randMeta = randJson?.optJSONObject("MediaContainer")?.optJSONArray("Metadata") ?: return@withContext emptyList()
         parseTracksFromMetadata(randMeta, defaultAlbum = "Plex Radio")
     }
@@ -429,6 +467,9 @@ class DesktopPlexClient(
     ): List<LocalTrack> = buildList {
         for (i in 0 until meta.length()) {
             val t = meta.getJSONObject(i)
+            val key = t.optString("ratingKey").ifBlank {
+                t.optString("key").removePrefix("/library/metadata/").takeWhile { it.isDigit() }
+            }
             val title = t.optString("title", "Track ${i + 1}").trim()
             val artist = t.optString("originalTitle")
                 .ifBlank { t.optString("grandparentTitle") }
@@ -456,6 +497,7 @@ class DesktopPlexClient(
                     durationMs = duration,
                     coverUri = coverUrl,
                     folder = albumTitle,
+                    ratingKey = key.takeIf { it.isNotBlank() }
                 )
             )
         }

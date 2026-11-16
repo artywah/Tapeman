@@ -954,6 +954,8 @@ fun PlexMusicBrowser(
 
     var selectedAlbum by remember { mutableStateOf<PlexAlbum?>(null) }
     var albumTracks by remember { mutableStateOf<List<LocalTrack>>(emptyList()) }
+    var selectedArtist by remember { mutableStateOf<PlexArtist?>(null) }
+    var artistAlbums by remember { mutableStateOf<List<PlexAlbum>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var canLoadMore by remember { mutableStateOf(false) }
     var loadingMore by remember { mutableStateOf(false) }
@@ -966,6 +968,25 @@ fun PlexMusicBrowser(
 
     val scope = rememberCoroutineScope()
     val isConfigured = currentConfig != null && currentConfig.serverUrl.isNotBlank() && currentConfig.serverToken.isNotBlank()
+
+    fun openAlbum(album: PlexAlbum) {
+        selectedAlbum = album
+        scope.launch {
+            loading = true
+            albumTracks = client.fetchTracks(album)
+            loading = false
+        }
+    }
+
+    fun openArtist(artist: PlexArtist) {
+        selectedArtist = artist
+        artistAlbums = emptyList()
+        scope.launch {
+            loading = true
+            artistAlbums = client.fetchArtistAlbums(artist.id)
+            loading = false
+        }
+    }
 
     fun loadCurrentTab(resetLetter: Boolean = false) {
         if (!isConfigured) return
@@ -1208,6 +1229,84 @@ fun PlexMusicBrowser(
                     }
                 }
             }
+        } else if (selectedArtist != null) {
+            // Artist Discography View
+            Column(modifier = Modifier.fillMaxSize()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFF22252C))
+                            .clickable {
+                                selectedArtist = null
+                                artistAlbums = emptyList()
+                            }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text("← Back", color = Color(0xFFE5A00D), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    AlbumThumbnail(
+                        client = client,
+                        url = selectedArtist?.thumbUrl,
+                        shape = CircleShape,
+                        iconSize = 18.sp,
+                        modifier = Modifier.size(44.dp)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = selectedArtist?.name ?: "",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = if (loading) "Loading albums..." else "${artistAlbums.size} album${if (artistAlbums.size == 1) "" else "s"}",
+                            color = Color(0xFFA0A4AE),
+                            fontSize = 11.sp,
+                            maxLines = 1
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                if (loading) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Color(0xFFE5A00D), modifier = Modifier.size(28.dp))
+                    }
+                } else if (artistAlbums.isEmpty()) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "No albums found for this artist",
+                            color = Color(0xFF888B94),
+                            fontSize = 12.sp
+                        )
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(minSize = 125.dp),
+                        contentPadding = PaddingValues(bottom = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        items(artistAlbums, key = { it.id }) { album ->
+                            AlbumGridCard(
+                                client = client,
+                                album = album,
+                                onClick = { openAlbum(album) }
+                            )
+                        }
+                    }
+                }
+            }
         } else {
             // Main Browser View
             Column(modifier = Modifier.fillMaxSize()) {
@@ -1243,6 +1342,8 @@ fun PlexMusicBrowser(
                                         )
                                         .clickable {
                                             selectedAlbum = null
+                                            selectedArtist = null
+                                            artistAlbums = emptyList()
                                             onSwitchLibrary(secId, secName)
                                         }
                                         .padding(horizontal = 8.dp, vertical = 3.dp)
@@ -1277,6 +1378,9 @@ fun PlexMusicBrowser(
                                     RoundedCornerShape(4.dp)
                                 )
                                 .clickable {
+                                    if (currentTab != tab) {
+                                        searchQuery = ""
+                                    }
                                     currentTab = tab
                                     selectedLetter = null
                                 }
@@ -1510,11 +1614,7 @@ fun PlexMusicBrowser(
                                             HomeArtistAvatarCard(
                                                 client = client,
                                                 artist = artist,
-                                                onOpen = {
-                                                    searchQuery = artist.name
-                                                    currentTab = PlexBrowserTab.ALBUMS
-                                                    loadCurrentTab()
-                                                }
+                                                onOpen = { openArtist(artist) }
                                             )
                                         }
                                     }
@@ -1642,12 +1742,7 @@ fun PlexMusicBrowser(
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(Color(0xFF181A20))
                                     .border(1.dp, Color(0xFF282B34), RoundedCornerShape(8.dp))
-                                    .clickable {
-                                        searchQuery = artist.name
-                                        selectedLetter = null
-                                        currentTab = PlexBrowserTab.ALBUMS
-                                        loadCurrentTab()
-                                    }
+                                    .clickable { openArtist(artist) }
                                     .padding(8.dp),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -1704,45 +1799,11 @@ fun PlexMusicBrowser(
                         modifier = Modifier.fillMaxSize()
                     ) {
                         items(itemsToDisplay) { album ->
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Color(0xFF181A20))
-                                    .border(1.dp, Color(0xFF282B34), RoundedCornerShape(8.dp))
-                                    .clickable {
-                                        selectedAlbum = album
-                                        scope.launch {
-                                            loading = true
-                                            albumTracks = client.fetchTracks(album)
-                                            loading = false
-                                        }
-                                    }
-                                    .padding(8.dp)
-                            ) {
-                                Column {
-                                    AlbumThumbnail(
-                                        client = client,
-                                        url = album.coverUrl,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(115.dp)
-                                    )
-                                    Spacer(Modifier.height(6.dp))
-                                    Text(
-                                        text = album.title,
-                                        color = Color.White,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1
-                                    )
-                                    Text(
-                                        text = album.artist,
-                                        color = Color(0xFF888B94),
-                                        fontSize = 10.sp,
-                                        maxLines = 1
-                                    )
-                                }
-                            }
+                            AlbumGridCard(
+                                client = client,
+                                album = album,
+                                onClick = { openAlbum(album) }
+                            )
                         }
                         if (canLoadMore && currentTab != PlexBrowserTab.RECENT && itemsToDisplay.isNotEmpty()) {
                             item(span = { GridItemSpan(maxLineSpan) }) {
@@ -1785,6 +1846,48 @@ private fun HomeSectionHeader(title: String, icon: String) {
                 letterSpacing = 1.sp
             )
         )
+    }
+}
+
+@Composable
+private fun AlbumGridCard(
+    client: DesktopPlexClient,
+    album: PlexAlbum,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFF181A20))
+            .border(1.dp, Color(0xFF282B34), RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(8.dp)
+    ) {
+        Column {
+            AlbumThumbnail(
+                client = client,
+                url = album.coverUrl,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(115.dp)
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = album.title,
+                color = Color.White,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = if (album.year > 0) "${album.artist} · ${album.year}" else album.artist,
+                color = Color(0xFF888B94),
+                fontSize = 10.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 

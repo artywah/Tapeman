@@ -120,8 +120,10 @@ class MacNativeAudioBackend : AudioBackend {
                 "PAUSED", "STOPPED" -> _isPlaying.value = false
             }
         } else if (line == "ENDED") {
+            if (_durationMs.value > 0L) {
+                _currentPositionMs.value = _durationMs.value
+            }
             _isPlaying.value = false
-            _currentPositionMs.value = _durationMs.value
         }
     }
 

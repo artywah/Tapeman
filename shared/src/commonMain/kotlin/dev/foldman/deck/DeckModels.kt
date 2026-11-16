@@ -113,6 +113,7 @@ data class LocalTrack(
     val durationMs: Long,
     val coverUri: String? = null,
     val folder: String = "",
+    val ratingKey: String? = null,
 )
 
 data class PlexUi(
