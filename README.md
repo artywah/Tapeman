@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/media/hero.png" alt="Tapeman: a Sony Walkman for foldables, showing the cover-screen player and the unfolded deck" width="100%">
+  <img src="docs/media/hero.png" alt="Tapeman: a digital tape player for foldables inspired by the Sony Walkman, showing the cover-screen player and the unfolded deck" width="100%">
 </p>
 
 <p align="center">
@@ -9,8 +9,8 @@
   <img alt="Kotlin and Jetpack Compose" src="https://img.shields.io/badge/Kotlin-Compose-7f52ff?style=for-the-badge&logo=kotlin&logoColor=white">
 </p>
 
-<p align="center"><b>Tapeman turns a folding phone into a Sony Walkman WM-RX707 cassette player.</b><br>
-Folded on a 21:9 cover screen (like the Galaxy Z Fold), it's a sideways horizontal WM-RX707 with feather-touch spun-chrome logic controls, a curved hammer-tone gunmetal control pod, and a transparent Type IV Metal tape.<br>
+<p align="center"><b>Tapeman turns a folding phone or desktop into a digital cassette player inspired by the Sony Walkman WM-RX707.</b><br>
+Folded on a 21:9 cover screen (like the Galaxy Z Fold), it's a sideways horizontal retro tape deck with feather-touch spun-chrome logic controls, a curved hammer-tone gunmetal control pod, and a transparent Type IV Metal tape.<br>
 Unfold it and it lays down into a full studio deck with brushed aluminium plates, master stereo faders, mechanical 3-digit tape counter, real-time EX DBB dynamic bass boost, and AVLS limiter.<br>
 Stream directly from your <b>Plex Media Server</b>, browse and control <b>Spotify</b>, play local music files, or drive YT Music and Apple Music.</p>
 
@@ -49,14 +49,14 @@ Tapeman dynamically reads the device hinge and posture, adapting its interface s
 
 <table>
   <tr>
-    <td align="center" width="34%"><img src="docs/media/cover-screen.png" alt="Cover screen: Sony Walkman WM-RX707 portable layout" width="100%"><br><b>Folded (Cover screen)</b><br><sub>The Sony Walkman WM-RX707 edge-to-edge. Spun-chrome logic controls, brushed metal side panels, EX DBB and AVLS switches, dual volume faders, and a transparent Type IV Metal tape behind the viewing window.</sub></td>
-    <td align="center" width="66%"><img src="docs/media/unfolded.png" alt="Unfolded: music library and the full stereo deck" width="100%"><br><b>Unfolded (Main display)</b><br><sub>A full dual-panel studio stereo deck alongside your music library. Browse Plex, Spotify, or local storage on the left, while operating the WM-RX707 deck on the right.</sub></td>
+    <td align="center" width="34%"><img src="docs/media/cover-screen.png" alt="Cover screen: portable digital cassette deck layout" width="100%"><br><b>Folded (Cover screen)</b><br><sub>An edge-to-edge portable tape deck inspired by the Sony Walkman WM-RX707. Spun-chrome logic controls, brushed metal side panels, EX DBB and AVLS switches, dual volume faders, and a transparent Type IV Metal tape behind the viewing window.</sub></td>
+    <td align="center" width="66%"><img src="docs/media/unfolded.png" alt="Unfolded: music library and the full stereo deck" width="100%"><br><b>Unfolded (Main display)</b><br><sub>A full dual-panel studio stereo deck alongside your music library. Browse Plex, Spotify, or local storage on the left, while operating the tape deck on the right.</sub></td>
   </tr>
 </table>
 
 <table>
   <tr>
-    <td align="center" width="50%"><img src="docs/media/tabletop.png" alt="Half-open on a table: deck on top, library on bottom" width="100%"><br><b>Half-open (Flex mode / Tabletop)</b><br><sub>Stand your phone on a table: the WM-RX707 deck occupies the top half at an optimal viewing angle, while library navigation and queue remain accessible below.</sub></td>
+    <td align="center" width="50%"><img src="docs/media/tabletop.png" alt="Half-open on a table: deck on top, library on bottom" width="100%"><br><b>Half-open (Flex mode / Tabletop)</b><br><sub>Stand your phone on a table: the tape deck occupies the top half at an optimal viewing angle, while library navigation and queue remain accessible below.</sub></td>
     <td align="center" width="50%"><img src="docs/media/unfolded-landscape.png" alt="Unfolded in landscape on a Galaxy Z Fold" width="100%"><br><b>Unfolded (Landscape)</b><br><sub>Widescreen view with full track queue details, album artwork, and complete deck controls.</sub></td>
   </tr>
 </table>
@@ -73,15 +73,15 @@ Tapeman features an authentic collection of seven vintage cassettes faithfully r
 | **TDK MA-XG 90** | 1986 | Metal · 70µs EQ (Type IV) | The holy grail of cassette engineering: rigid 3-piece die-cast metal and ceramic frame with dual glass composite reel rings. |
 | **Maxell XLII-S 90** | 1988 | High Bias · 70µs EQ (Type II) | Audiophile tape featuring Pure Epitaxial formulation, high-resonance damping mechanism, and dual-surface molded shell. |
 | **Maxell UD II 90** | 1989 | High Bias · 70µs EQ (Type II) | Legendary high-bias cassette with distinctive wide oval viewing window and gold silkscreen lettering. |
-| **Sony UX-Pro 90** | 1986 | High Bias · 70µs EQ (Type II) | Audiophile master cassette with integrated high-density ceramic tape guide block for ultra-crisp highs. |
-| **Sony HF 90** | 1985 | Normal Bias · 120µs EQ (Type I) | Definitive vintage normal bias cassette featuring a crystal-clear wide window and classic red accent racing stripes. |
+| **UX-Pro 90** | 1986 | High Bias · 70µs EQ (Type II) | Audiophile master cassette homage with integrated high-density ceramic tape guide block for ultra-crisp highs. |
+| **HF 90** | 1985 | Normal Bias · 120µs EQ (Type I) | Vintage normal bias cassette homage featuring a crystal-clear wide window and classic red accent racing stripes. |
 | **TEAC Sound 52** | 1984 | Normal Bias · 120µs EQ (Type I) | Legendary open-reel cassette equipped with dual spun-aluminum 3-window flanges that rotate in real time with the tape. |
 
 ### Interactive Shell Inspector
 - **How to Open:** Long-press the **`REC · SHELL`** button on the left titanium control rim, or tap the cassette in Tabletop (Flex mode).
 - **Uncropped Live Preview:** Displays the complete cassette shell in full 100:64 aspect ratio with active spinning reels, corner screws, write-protect tabs, and tape head bridge.
 - **Historic Specifications:** Inspect formulation details, bias EQ settings, and archival background notes.
-- **One-Tap Switcher:** Cycle through the archive or instantly load any cassette directly into the Walkman deck.
+- **One-Tap Switcher:** Cycle through the archive or instantly load any cassette directly into the tape deck.
 
 ---
 
@@ -89,8 +89,8 @@ Tapeman features an authentic collection of seven vintage cassettes faithfully r
 
 Control your music directly from your home screen with authentic analog styling:
 
-- **4×2 Walkman Studio Deck Widget:**
-  - A scaled recreation of the Sony Walkman WM-RX707 deck.
+- **4×2 Studio Deck Widget:**
+  - A scaled digital recreation inspired by the Sony Walkman WM-RX707 deck.
   - Dynamically rendered live cassette shell reflecting your currently loaded tape and album artwork.
   - Full playback transport: Play/Pause, Rewind, Fast-Forward, AMS Skip Previous/Next, and Stop.
   - Mechanical tape counter, amber/green REC status LEDs, EX DBB indicator, and real-time track metadata.
@@ -195,7 +195,7 @@ Apple provides MusicKit for Android as AAR libraries via the Apple Developer Por
 ```mermaid
 flowchart LR
     subgraph UI["Jetpack Compose UI"]
-        Screen["FoldmanScreen<br/>Hinge posture detection"] --> Deck["WalkmanPlayerUnit<br/>WM-RX707 styling & controls"]
+        Screen["FoldmanScreen<br/>Hinge posture detection"] --> Deck["WalkmanPlayerUnit<br/>Retro tape deck UI & controls"]
         Screen --> Hub["UnfoldedMusicHub<br/>Library & Shelf & Queue"]
     end
     VM["DeckViewModel<br/>Transport state machine & DSP"] --> Screen
@@ -208,7 +208,7 @@ flowchart LR
 
 Key Source Modules:
 - [`ui/FoldmanScreen.kt`](app/src/main/java/dev/foldman/ui/FoldmanScreen.kt): Posture adaptation (Cover, Unfolded, Tabletop) based on `WindowLayoutInfo` and `FoldingFeature`.
-- [`ui/WalkmanPlayerUnit`](app/src/main/java/dev/foldman/ui/FoldmanScreen.kt): High-fidelity Sony Walkman WM-RX707 unit with brushed aluminium panels, hammer-tone pod, and spun-chrome controls.
+- [`ui/WalkmanPlayerUnit`](app/src/main/java/dev/foldman/ui/FoldmanScreen.kt): Digital tape deck unit inspired by the Sony Walkman WM-RX707, with brushed aluminium panels, hammer-tone pod, and spun-chrome controls.
 - [`ui/Cassette.kt`](app/src/main/java/dev/foldman/ui/Cassette.kt): Compact Cassette physical model (Type IV Metal / FM 60 / PX 90) with real-time reel mechanics and tape path.
 - [`ui/Controls.kt`](app/src/main/java/dev/foldman/ui/Controls.kt): Analog controls, volume fader pots, EX DBB and AVLS toggles, and mechanical counter.
 - [`ui/Panels.kt`](app/src/main/java/dev/foldman/ui/Panels.kt): Brushed metal textures, bevels, screws, and surface materials.
@@ -219,13 +219,13 @@ Key Source Modules:
 
 ## Roadmap
 
-- [x] Sony Walkman WM-RX707 industrial recreation with spun-chrome feather-touch controls
+- [x] Digital cassette player UI inspired by the Sony Walkman WM-RX707 with spun-chrome feather-touch controls
 - [x] Direct Plex Media Server streaming with live library browsing and search
 - [x] In-app Spotify library browsing and playback control via OAuth 2.0 PKCE
 - [x] Real-time EX DBB (Dynamic Bass Boost) and AVLS audio processing
-- [x] Authentic vintage cassette archive (TDK, Maxell, Sony, TEAC) with custom formulations and spinning reel physics
+- [x] Vintage-inspired cassette archive (TDK, Maxell, UX-Pro, HF, TEAC) with custom formulations and spinning reel physics
 - [x] Interactive Cassette Shell Inspector modal with uncropped live specs
-- [x] Android Home Screen widgets (4×2 Walkman Studio Deck & 2×1 Compact Cassette)
+- [x] Android Home Screen widgets (4×2 Studio Deck & 2×1 Compact Cassette)
 - [x] Interactive Tabletop (Flex mode) layout for foldables
 - [ ] Background playback for in-app Apple Music
 - [ ] Auto-reverse Side B transition at playlist end

@@ -8,7 +8,7 @@ All notable changes to Tapeman. Versions follow [semantic versioning](https://se
 - **Native Desktop Player (macOS / Kotlin Multiplatform + Compose Multiplatform):**
   - **Full Dual-Pane Landscape View (1200 x 590):** Default window dimensions tuned to an ideal 2:1 aspect ratio with responsive `BoxWithConstraints` deck scaling preventing library overlap or window overflow.
   - **Spotify-Style Mini Player Mode (470 x 390):** Compact floating player window with always-on-top support, height-constrained deck scaling eliminating bottom clipping, live track LED, and a prominent gold `[ ⤢ Open Library ]` button.
-  - **Mechanical Walkman WM-RX707 Hardware Simulation:** Full natural horizontal orientation, 3D cassette door tilt, authentic dual spool reel motion, AMS Next/Prev, 15-second Cue/Review seeking, analog volume fader, mechanical DBB / AVLS switches, Hold lock, and Tape Archive selector tray.
+  - **Mechanical Retro Tape Deck Simulation (inspired by the Sony Walkman WM-RX707):** Full natural horizontal orientation, 3D cassette door tilt, authentic dual spool reel motion, AMS Next/Prev, 15-second Cue/Review seeking, analog volume fader, mechanical DBB / AVLS switches, Hold lock, and Tape Archive selector tray.
   - **Full Plex Music Browser on Desktop:**
     - **`Home` Tab:** Hero DJ Booth (Sonic DJ + Loved Tracks cards), *Jump Back In* (`⚡ JUMP BACK IN`) horizontal album carousel with direct `▶` playback, *Fans Also Like* (`✨ FANS ALSO LIKE`) artist avatars, and dynamic Plex recommendation hubs (`💿 DYNAMIC HUBS`).
     - **`Playlists` Tab:** Pinned gold-star `★ Loved Tracks` card plus all user audio playlists from Plex with artwork and track counts.
@@ -41,7 +41,7 @@ All notable changes to Tapeman. Versions follow [semantic versioning](https://se
   - **Mobile "Home" Tab & Crate Digger Feed:**
     - Permanent **`HOME`** pill pinned as the first tab in the Plex Library panel on foldables and tablets.
     - **The DJ Booth (Hero Deck):** Live interactive **Sonic DJ** toggle card (cyan audio waveforms, on/off state) and quick access to **Loved Tracks**.
-    - **"Jump Back In" Shelf:** Horizontal cassette tape rack of recently played albums (`lastViewedAt:desc`) with instant 1-tap load into the Walkman deck.
+    - **"Jump Back In" Shelf:** Horizontal cassette tape rack of recently played albums (`lastViewedAt:desc`) with instant 1-tap load into the tape deck.
     - **Acoustic Similar Artists Shelf:** Circular artist avatars with instant radio launch.
     - **Plex Hub Shelves:** Horizontal scrolling album shelves.
   - **Android Auto "Home" Tab & 4-Across Layout:**
@@ -88,7 +88,7 @@ All notable changes to Tapeman. Versions follow [semantic versioning](https://se
 
 ### Added
 - **Android Home Screen Widgets:**
-  - **4×2 Walkman Studio Deck Widget:** High-fidelity reproduction of the Sony Walkman WM-RX707 deck for Android home screens. Features live vector/bitmap cassette rendering of the loaded shell, full playback controls (Play/Pause, Rewind, Fast-Forward, AMS Skip, Stop), mechanical tape counter, EX DBB indicator, REC status LEDs, and track metadata.
+  - **4×2 Studio Deck Widget:** Digital cassette deck widget inspired by the Sony Walkman WM-RX707 for Android home screens. Features live vector/bitmap cassette rendering of the loaded shell, full playback controls (Play/Pause, Rewind, Fast-Forward, AMS Skip, Stop), mechanical tape counter, EX DBB indicator, REC status LEDs, and track metadata.
   - **2×1 Compact Cassette Widget:** Compact horizontal cassette widget rendering the active tape shell with embedded album art and one-tap playback control.
   - **Real-Time RemoteViews Bitmap Renderer (`CassetteBitmapRenderer`):** Custom canvas graphics pipeline rendering real-time cassette shells, hubs, tape packs, and album art directly into Android system widgets.
 - **Expanded Vintage Cassette Archive:**
@@ -97,8 +97,8 @@ All notable changes to Tapeman. Versions follow [semantic versioning](https://se
     - **TDK MA-XG 90 (1986):** Legendary Type IV Metal tape with rigid 3-piece die-cast metal and ceramic frame and dual glass composite reel rings.
     - **Maxell XLII-S 90 (1988):** High Bias 70µs tape featuring Pure Epitaxial formulation, dual-surface molded shell, and high-resonance damping mechanism.
     - **Maxell UD II 90 (1989):** High Bias tape with iconic wide oval viewing window and gold silkscreen lettering.
-    - **Sony UX-Pro 90 (1986):** Audiophile Type II master tape featuring an integrated high-density ceramic tape guide block.
-    - **Sony HF 90 (1985):** Definitive Type I Normal Bias vintage cassette with crystal-clear wide window and red accent racing stripes.
+    - **UX-Pro 90 (1986):** Audiophile Type II master tape homage featuring an integrated high-density ceramic tape guide block.
+    - **HF 90 (1985):** Type I Normal Bias vintage cassette homage with crystal-clear wide window and red accent racing stripes.
     - **TEAC Sound 52 (1984):** Legendary open-reel cassette equipped with dual spun-aluminum 3-window flanges, red leader clamp, and authentic reel typography.
 - **Interactive Cassette Shell Inspector:**
   - Dedicated specifications and archive modal launched via long-press on the `REC · SHELL` button or by tapping the cassette in Tabletop (Flex mode).
@@ -108,10 +108,10 @@ All notable changes to Tapeman. Versions follow [semantic versioning](https://se
 ### Fixed
 - **Cassette Typography & Spindle Hole Clearance:**
   - Adjusted label typography, logos, and album art placement across all 7 cassette shells to strictly respect spindle drive holes ($HUB_L = 28.75\text{ mm}$, $HUB_R = 71.25\text{ mm}$, $r = 5.8\text{ mm}$) and molded washer collars.
-  - Relocated Sony UX-Pro track title to the dark top header strip, Maxell XLII-S and UD II logos outside the 8.2mm collars, and TDK MA-XG badges to the bottom center bay and outer corners.
+  - Relocated UX-Pro track title to the dark top header strip, Maxell XLII-S and UD II logos outside the 8.2mm collars, and TDK MA-XG badges to the bottom center bay and outer corners.
 - **Album Cover Art & Label Orientation:**
-  - Fixed an issue where the square album art image and label text appeared upside down on inverted cassette shells in the Walkman chamber.
-  - Automatically applies a 180° rotation transform to album art, Side A/B badges, and track metadata when loaded in the Walkman deck so all elements face right-side up.
+  - Fixed an issue where the square album art image and label text appeared upside down on inverted cassette shells in the tape chamber.
+  - Automatically applies a 180° rotation transform to album art, Side A/B badges, and track metadata when loaded in the tape deck so all elements face right-side up.
 - **TEAC Sound 52 Reel Typography Alignment:**
   - Unified the radial coordinate system between the 3 cutout slots and the 3 solid aluminum sectors.
   - Silkscreen typography (`TEAC`, `SOUND 52`, `Bias/NORMAL EQ/120µs`) is now centered symmetrically at $0^\circ$, $120^\circ$, and $240^\circ$ inside the broad silver sectors, maintaining generous margins from the adjacent cutout windows.
@@ -138,7 +138,7 @@ All notable changes to Tapeman. Versions follow [semantic versioning](https://se
 Major evolution and redesign to **Tapeman**.
 
 ### Added
-- **Sony Walkman WM-RX707 Redesign:**
+- **Retro Tape Deck Redesign (inspired by the Sony Walkman WM-RX707):**
   - Curved hammer-tone gunmetal control pod with spun-chrome feather-touch logic controls (REW, FF, STOP, FWD/REV direction toggle).
   - Upper brushed aluminium panel featuring the OPEN cassette bay hatch, AMS skip buttons, and EX DBB toggle switch.
   - Lower brushed aluminium panel with mechanical 3-digit tape counter, 000 reset push-button, AVLS limiter switch, master dual-channel stereo volume faders, and REMOTE/PHONES socket.
