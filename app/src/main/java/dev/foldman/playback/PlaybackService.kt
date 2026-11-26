@@ -82,6 +82,7 @@ class PlaybackService : MediaLibraryService() {
 
     private var isFavoriteActive: Boolean = false
     private var isSonicDjActive: Boolean = false
+    private var isHolidaySonicSession: Boolean = false
     private var isSonicDjFetching: Boolean = false
 
     override fun onCreate() {
@@ -497,7 +498,14 @@ class PlaybackService : MediaLibraryService() {
         isSonicDjActive = !isSonicDjActive
         updateCustomLayout()
         if (isSonicDjActive) {
+            val cur = session?.player?.currentMediaItem
+            isHolidaySonicSession = plexClient.isHolidayTitleOrAlbum(
+                cur?.mediaMetadata?.title?.toString().orEmpty(),
+                cur?.mediaMetadata?.albumTitle?.toString().orEmpty()
+            )
             session?.player?.let { checkSonicDjTrigger(it, forceAtEnd = true, insertNext = true) }
+        } else {
+            isHolidaySonicSession = false
         }
         session?.notifyChildrenChanged(SECTION_PLAYLISTS, 0, null)
         session?.notifyChildrenChanged(SECTION_HOME, 0, null)
@@ -544,7 +552,12 @@ class PlaybackService : MediaLibraryService() {
             isSonicDjFetching = true
             serviceScope.launch {
                 try {
-                    val similar = plexClient.fetchSonicallySimilarTracks(ratingKey, limit = 10, maxDistance = 0.22f)
+                    val similar = plexClient.fetchSonicallySimilarTracks(
+                        ratingKey,
+                        limit = 10,
+                        maxDistance = 0.22f,
+                        forceHolidayTheme = isHolidaySonicSession
+                    )
                     if (similar.isNotEmpty()) {
                         withContext(Dispatchers.Main) {
                             val currentUri = player.currentMediaItem?.mediaId

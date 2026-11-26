@@ -420,6 +420,7 @@ fun TapemanDesktopApp(
     }
 
     var isSonicReplenishing by remember { mutableStateOf(false) }
+    var isHolidaySonicSession by remember { mutableStateOf(false) }
 
     fun filterNewSonicTracks(candidates: List<LocalTrack>, existingQueue: List<LocalTrack>): List<LocalTrack> {
         val existingUris = existingQueue.map { it.uri }.toSet()
@@ -434,13 +435,21 @@ fun TapemanDesktopApp(
         mechSounds.keyDown()
         val next = !isSonicDjActive
         isSonicDjActive = next
+        if (!next) {
+            isHolidaySonicSession = false
+        }
 
         if (next) {
             val currTrack = currentQueue.getOrNull(currentTrackIndex)
             if (currTrack != null && activeTrackUrl != null) {
+                isHolidaySonicSession = plexClient.isHolidayTitleOrAlbum(currTrack.title, currTrack.album)
                 // Sonic DJ turned on while a song is playing: fetch similar tracks to follow right after
                 scope.launch {
-                    val similar = plexClient.fetchSonicallySimilarTracks(currTrack.ratingKey, limit = 15)
+                    val similar = plexClient.fetchSonicallySimilarTracks(
+                        currTrack.ratingKey,
+                        limit = 15,
+                        forceHolidayTheme = isHolidaySonicSession
+                    )
                     if (similar.isNotEmpty()) {
                         val newItems = filterNewSonicTracks(similar, listOf(currTrack))
                         if (newItems.isNotEmpty()) {
@@ -486,7 +495,7 @@ fun TapemanDesktopApp(
             val curr = currentQueue.getOrNull(currentTrackIndex)
             scope.launch {
                 try {
-                    val more = plexClient.fetchSonicallySimilarTracks(curr?.ratingKey, limit = 15)
+                    val more = plexClient.fetchSonicallySimilarTracks(curr?.ratingKey, limit = 15, forceHolidayTheme = isHolidaySonicSession)
                     if (more.isNotEmpty()) {
                         val newItems = filterNewSonicTracks(more, currentQueue)
                         val toAdd = if (newItems.isNotEmpty()) newItems else more
@@ -530,7 +539,7 @@ fun TapemanDesktopApp(
             scope.launch {
                 isSonicReplenishing = true
                 try {
-                    val more = plexClient.fetchSonicallySimilarTracks(curr.ratingKey, limit = 15)
+                    val more = plexClient.fetchSonicallySimilarTracks(curr.ratingKey, limit = 15, forceHolidayTheme = isHolidaySonicSession)
                     if (more.isNotEmpty()) {
                         val newItems = filterNewSonicTracks(more, currentQueue)
                         if (newItems.isNotEmpty()) {
@@ -967,6 +976,7 @@ fun TapemanDesktopApp(
                             },
                             onTrackSelected = { track, queue, album ->
                                 if (isSonicDjActive) {
+                                    isHolidaySonicSession = plexClient.isHolidayTitleOrAlbum(track.title, album.title)
                                     playPlexTrack(track, album, listOf(track), 0)
                                 } else {
                                     val idx = queue.indexOfFirst { it.uri == track.uri }.coerceAtLeast(0)

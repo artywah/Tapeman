@@ -481,10 +481,22 @@ class PlexClient(
     private fun normalizeTitleForDedup(title: String): String =
         title.lowercase().replace(Regex("\\s*\\([^)]*\\)|\\s*\\[[^]]*\\]"), "").replace(Regex("[^a-z0-9]"), "")
 
+    fun isHolidayTitleOrAlbum(title: String, album: String): Boolean {
+        val hay = "$title $album".lowercase()
+        val holidayWords = listOf(
+            "christmas", "xmas", "holiday", "holidays", "santa", "jingle", "noel",
+            "merry", "sleigh", "rudolph", "frosty", "mistletoe", "silent night",
+            "holy night", "carol", "yuletide", "navidad", "festive", "winter wonderland",
+            "little drummer boy", "silver bells", "deck the halls", "white winter"
+        )
+        return holidayWords.any { hay.contains(it) }
+    }
+
     suspend fun fetchSonicallySimilarTracks(
         ratingKey: String,
         limit: Int = 25,
         maxDistance: Float = 0.25f,
+        forceHolidayTheme: Boolean = false,
     ): List<LocalTrack> = withContext(Dispatchers.IO) {
         if (plexToken.isBlank()) return@withContext emptyList()
         val cleanKey = ratingKey.removePrefix("playlist_").removePrefix("album_").removePrefix("radio_").removePrefix("artist_")
@@ -492,13 +504,16 @@ class PlexClient(
         var seedNormTitle: String? = null
         var thematicStyleId: String? = null
         var thematicGenreId: String? = null
+        var isHolidayTheme = forceHolidayTheme
 
         if (cleanKey.isNotBlank() && cleanKey.all { it.isDigit() }) {
             val trackMeta = runCatching {
                 getJson("/library/metadata/$cleanKey").optJSONObject("MediaContainer")?.optJSONArray("Metadata")?.optJSONObject(0)
             }.getOrNull()
             val seedTitle = trackMeta?.optString("title").orEmpty()
+            val seedAlbum = trackMeta?.optString("parentTitle").orEmpty()
             if (seedTitle.isNotBlank()) seedNormTitle = normalizeTitleForDedup(seedTitle)
+            if (isHolidayTitleOrAlbum(seedTitle, seedAlbum)) isHolidayTheme = true
             val parentKey = trackMeta?.optString("parentRatingKey")?.takeIf { it.isNotBlank() } ?: cleanKey
             val albumMeta = runCatching {
                 getJson("/library/metadata/$parentKey").optJSONObject("MediaContainer")?.optJSONArray("Metadata")?.optJSONObject(0)
@@ -511,6 +526,7 @@ class PlexClient(
                     val tag = s.optString("tag").lowercase()
                     if (thematicKeywords.any { tag.contains(it) }) {
                         thematicStyleId = s.optString("id").takeIf { it.isNotBlank() }
+                        if (tag.contains("christmas") || tag.contains("holiday")) isHolidayTheme = true
                         break
                     }
                 }
@@ -523,6 +539,7 @@ class PlexClient(
                         val tag = g.optString("tag").lowercase()
                         if (thematicKeywords.any { tag.contains(it) }) {
                             thematicGenreId = g.optString("id").takeIf { it.isNotBlank() }
+                            if (tag.contains("christmas") || tag.contains("holiday")) isHolidayTheme = true
                             break
                         }
                     }
@@ -543,7 +560,33 @@ class PlexClient(
             return out
         }
 
-        // 0. If the track is in a seasonal/thematic genre or style (e.g. Christmas / Holidays), keep Sonic DJ in that theme!
+        // 0. Strict Holiday / Christmas mode: keep 100% festive tracks
+        if (sId != null && isHolidayTheme) {
+            val pool = mutableListOf<LocalTrack>()
+            if (thematicStyleId != null || thematicGenreId != null) {
+                val filterParam = if (thematicStyleId != null) "album.style=$thematicStyleId" else "album.genre=$thematicGenreId"
+                val themePath = "/library/sections/$sId/all?type=10&$filterParam&sort=random&X-Plex-Container-Start=0&X-Plex-Container-Size=${limit * 4}"
+                val themeMeta = runCatching { getJson(themePath).optJSONObject("MediaContainer")?.optJSONArray("Metadata") }.getOrNull()
+                if (themeMeta != null) {
+                    pool += parseTracksFromMetadata(themeMeta, defaultAlbum = "Holiday Mix")
+                }
+            }
+            for (q in listOf("Christmas", "Holiday")) {
+                if (pool.count { isHolidayTitleOrAlbum(it.title, it.folder) } >= limit * 2) break
+                val albPath = "/library/sections/$sId/all?type=9&title=${java.net.URLEncoder.encode(q, "UTF-8")}&sort=random&X-Plex-Container-Start=0&X-Plex-Container-Size=12"
+                val albMeta = runCatching { getJson(albPath).optJSONObject("MediaContainer")?.optJSONArray("Metadata") }.getOrNull()
+                if (albMeta != null) {
+                    val albums = parseAlbumsFromMetadata(albMeta).shuffled().take(5)
+                    for (alb in albums) {
+                        pool += runCatching { fetchTracks(alb) }.getOrDefault(emptyList())
+                    }
+                }
+            }
+            val strictHoliday = dedup(pool.filter { isHolidayTitleOrAlbum(it.title, it.folder) }.shuffled()).take(limit)
+            if (strictHoliday.isNotEmpty()) return@withContext strictHoliday
+        }
+
+        // 0b. Other thematic genres/styles
         if (sId != null && (thematicStyleId != null || thematicGenreId != null)) {
             val filterParam = if (thematicStyleId != null) "album.style=$thematicStyleId" else "album.genre=$thematicGenreId"
             val themePath = "/library/sections/$sId/all?type=10&$filterParam&sort=random&X-Plex-Container-Start=0&X-Plex-Container-Size=${limit * 2}"
