@@ -815,13 +815,16 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
                 tick()
                 return@launch
             }
+            val safeIndex = startIndex.coerceIn(albumTracks.indices)
+            val queueToLoad = if (plex.value.isSonicDjActive) listOf(albumTracks[safeIndex]) else albumTracks
+            val queueStartIdx = if (plex.value.isSonicDjActive) 0 else safeIndex
             plexPlayingAlbum = targetAlbum
-            plexLoadedTracks = albumTracks
+            plexLoadedTracks = queueToLoad
             if (winding != 0) finishWinding()
             stopped = false
             playRequestedAt = SystemClock.elapsedRealtime()
-            plexBackend.setTracks(albumTracks, startIndex = startIndex.coerceIn(albumTracks.indices), loadIntoPlayer = true)
-            plexBackend.playTrack(startIndex.coerceIn(albumTracks.indices))
+            plexBackend.setTracks(queueToLoad, startIndex = queueStartIdx, loadIntoPlayer = true)
+            plexBackend.playTrack(queueStartIdx)
             tick()
         }
     }

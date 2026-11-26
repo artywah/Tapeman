@@ -548,12 +548,24 @@ class PlaybackService : MediaLibraryService() {
                     if (similar.isNotEmpty()) {
                         withContext(Dispatchers.Main) {
                             val currentUri = player.currentMediaItem?.mediaId
+                            val currentTitleNorm = player.currentMediaItem?.mediaMetadata?.title?.toString()
+                                ?.lowercase()?.replace(Regex("[^a-z0-9]"), "").orEmpty()
                             val existingIds = if (insertNext) {
                                 setOfNotNull(currentUri)
                             } else {
                                 (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId }.toSet()
                             }
-                            val newTracks = similar.filter { it.uri.toString() !in existingIds }
+                            val existingTitles = if (insertNext) {
+                                setOf(currentTitleNorm).filter { it.isNotBlank() }.toSet()
+                            } else {
+                                (0 until player.mediaItemCount).mapNotNull {
+                                    player.getMediaItemAt(it).mediaMetadata.title?.toString()?.lowercase()?.replace(Regex("[^a-z0-9]"), "")
+                                }.filter { it.isNotBlank() }.toSet()
+                            }
+                            val newTracks = similar.filter { t ->
+                                val norm = t.title.lowercase().replace(Regex("[^a-z0-9]"), "")
+                                t.uri.toString() !in existingIds && (norm.isBlank() || norm !in existingTitles)
+                            }
                             if (newTracks.isNotEmpty()) {
                                 val items = newTracks.map(::toPlayableMediaItem)
                                 val nextIdx = (player.currentMediaItemIndex + 1).coerceIn(0, player.mediaItemCount)

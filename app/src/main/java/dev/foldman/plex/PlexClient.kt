@@ -478,6 +478,9 @@ class PlexClient(
         parseTracksFromMetadata(meta, defaultAlbum = "Plex Favorites")
     }
 
+    private fun normalizeTitleForDedup(title: String): String =
+        title.lowercase().replace(Regex("\\s*\\([^)]*\\)|\\s*\\[[^]]*\\]"), "").replace(Regex("[^a-z0-9]"), "")
+
     suspend fun fetchSonicallySimilarTracks(
         ratingKey: String,
         limit: Int = 25,
@@ -485,28 +488,98 @@ class PlexClient(
     ): List<LocalTrack> = withContext(Dispatchers.IO) {
         if (plexToken.isBlank()) return@withContext emptyList()
         val cleanKey = ratingKey.removePrefix("playlist_").removePrefix("album_").removePrefix("radio_").removePrefix("artist_")
+        val sId = runCatching { findMusicSectionId() }.getOrNull()
+        var seedNormTitle: String? = null
+        var thematicStyleId: String? = null
+        var thematicGenreId: String? = null
+
+        if (cleanKey.isNotBlank() && cleanKey.all { it.isDigit() }) {
+            val trackMeta = runCatching {
+                getJson("/library/metadata/$cleanKey").optJSONObject("MediaContainer")?.optJSONArray("Metadata")?.optJSONObject(0)
+            }.getOrNull()
+            val seedTitle = trackMeta?.optString("title").orEmpty()
+            if (seedTitle.isNotBlank()) seedNormTitle = normalizeTitleForDedup(seedTitle)
+            val parentKey = trackMeta?.optString("parentRatingKey")?.takeIf { it.isNotBlank() } ?: cleanKey
+            val albumMeta = runCatching {
+                getJson("/library/metadata/$parentKey").optJSONObject("MediaContainer")?.optJSONArray("Metadata")?.optJSONObject(0)
+            }.getOrNull()
+            val thematicKeywords = listOf("christmas", "holiday", "holidays", "halloween", "children", "soundtrack", "classical")
+            val styles = albumMeta?.optJSONArray("Style")
+            if (styles != null) {
+                for (i in 0 until styles.length()) {
+                    val s = styles.optJSONObject(i) ?: continue
+                    val tag = s.optString("tag").lowercase()
+                    if (thematicKeywords.any { tag.contains(it) }) {
+                        thematicStyleId = s.optString("id").takeIf { it.isNotBlank() }
+                        break
+                    }
+                }
+            }
+            if (thematicStyleId == null) {
+                val genres = albumMeta?.optJSONArray("Genre")
+                if (genres != null) {
+                    for (i in 0 until genres.length()) {
+                        val g = genres.optJSONObject(i) ?: continue
+                        val tag = g.optString("tag").lowercase()
+                        if (thematicKeywords.any { tag.contains(it) }) {
+                            thematicGenreId = g.optString("id").takeIf { it.isNotBlank() }
+                            break
+                        }
+                    }
+                }
+            }
+        }
+
+        fun dedup(tracks: List<LocalTrack>): List<LocalTrack> {
+            val seenTitles = mutableSetOf<String>()
+            seedNormTitle?.let { seenTitles.add(it) }
+            val out = mutableListOf<LocalTrack>()
+            for (t in tracks) {
+                val norm = normalizeTitleForDedup(t.title)
+                if (norm.isNotBlank() && norm in seenTitles) continue
+                if (norm.isNotBlank()) seenTitles.add(norm)
+                out.add(t)
+            }
+            return out
+        }
+
+        // 0. If the track is in a seasonal/thematic genre or style (e.g. Christmas / Holidays), keep Sonic DJ in that theme!
+        if (sId != null && (thematicStyleId != null || thematicGenreId != null)) {
+            val filterParam = if (thematicStyleId != null) "album.style=$thematicStyleId" else "album.genre=$thematicGenreId"
+            val themePath = "/library/sections/$sId/all?type=10&$filterParam&sort=random&X-Plex-Container-Start=0&X-Plex-Container-Size=${limit * 2}"
+            val themeMeta = runCatching { getJson(themePath).optJSONObject("MediaContainer")?.optJSONArray("Metadata") }.getOrNull()
+            if (themeMeta != null && themeMeta.length() > 0) {
+                val themeTracks = dedup(parseTracksFromMetadata(themeMeta, defaultAlbum = "Sonic DJ")).take(limit)
+                if (themeTracks.isNotEmpty()) return@withContext themeTracks
+            }
+        }
+
         if (cleanKey.isNotBlank() && cleanKey.all { it.isDigit() }) {
             // 1. Try /nearest with requested maxDistance
-            val path = "/library/metadata/$cleanKey/nearest?limit=$limit&maxDistance=$maxDistance"
+            val path = "/library/metadata/$cleanKey/nearest?limit=${limit * 2}&maxDistance=$maxDistance"
             val meta = runCatching { getJson(path).optJSONObject("MediaContainer")?.optJSONArray("Metadata") }.getOrNull()
             if (meta != null && meta.length() > 0) {
-                val parsed = parseTracksFromMetadata(meta, defaultAlbum = "Sonically Similar")
+                val parsed = dedup(parseTracksFromMetadata(meta, defaultAlbum = "Sonically Similar")).take(limit)
                 if (parsed.isNotEmpty()) return@withContext parsed
             }
             // 2. Retry /nearest without maxDistance cap
-            val widePath = "/library/metadata/$cleanKey/nearest?limit=$limit"
+            val widePath = "/library/metadata/$cleanKey/nearest?limit=${limit * 2}"
             val wideMeta = runCatching { getJson(widePath).optJSONObject("MediaContainer")?.optJSONArray("Metadata") }.getOrNull()
             if (wideMeta != null && wideMeta.length() > 0) {
-                val parsed = parseTracksFromMetadata(wideMeta, defaultAlbum = "Sonically Similar")
+                val parsed = dedup(parseTracksFromMetadata(wideMeta, defaultAlbum = "Sonically Similar")).take(limit)
                 if (parsed.isNotEmpty()) return@withContext parsed
             }
         }
         // 3. Fallback: random tracks from music section
-        val sId = runCatching { findMusicSectionId() }.getOrNull() ?: return@withContext emptyList()
-        val randPath = "/library/sections/$sId/all?type=10&sort=random&X-Plex-Container-Start=0&X-Plex-Container-Size=$limit"
-        val randMeta = runCatching { getJson(randPath).optJSONObject("MediaContainer")?.optJSONArray("Metadata") }.getOrNull()
-            ?: return@withContext emptyList()
-        parseTracksFromMetadata(randMeta, defaultAlbum = "Sonic Flow")
+        if (sId != null) {
+            val randPath = "/library/sections/$sId/all?type=10&sort=random&X-Plex-Container-Start=0&X-Plex-Container-Size=$limit"
+            val randMeta = runCatching { getJson(randPath).optJSONObject("MediaContainer")?.optJSONArray("Metadata") }.getOrNull()
+            if (randMeta != null && randMeta.length() > 0) {
+                val parsed = dedup(parseTracksFromMetadata(randMeta, defaultAlbum = "Sonic Flow")).take(limit)
+                if (parsed.isNotEmpty()) return@withContext parsed
+            }
+        }
+        emptyList()
     }
 
     suspend fun fetchStationTracks(ratingKey: String): List<LocalTrack> = withContext(Dispatchers.IO) {

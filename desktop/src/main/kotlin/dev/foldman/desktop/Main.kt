@@ -421,6 +421,15 @@ fun TapemanDesktopApp(
 
     var isSonicReplenishing by remember { mutableStateOf(false) }
 
+    fun filterNewSonicTracks(candidates: List<LocalTrack>, existingQueue: List<LocalTrack>): List<LocalTrack> {
+        val existingUris = existingQueue.map { it.uri }.toSet()
+        val existingTitles = existingQueue.map { it.title.lowercase().replace(Regex("[^a-z0-9]"), "") }.toSet()
+        return candidates.filter { t ->
+            val norm = t.title.lowercase().replace(Regex("[^a-z0-9]"), "")
+            t.uri !in existingUris && (norm.isBlank() || norm !in existingTitles)
+        }
+    }
+
     fun toggleSonicDj() {
         mechSounds.keyDown()
         val next = !isSonicDjActive
@@ -433,8 +442,7 @@ fun TapemanDesktopApp(
                 scope.launch {
                     val similar = plexClient.fetchSonicallySimilarTracks(currTrack.ratingKey, limit = 15)
                     if (similar.isNotEmpty()) {
-                        val existingUris = setOf(currTrack.uri)
-                        val newItems = similar.filter { it.uri !in existingUris }
+                        val newItems = filterNewSonicTracks(similar, listOf(currTrack))
                         if (newItems.isNotEmpty()) {
                             currentQueue = currentQueue.take(currentTrackIndex + 1) + newItems
                         }
@@ -480,8 +488,7 @@ fun TapemanDesktopApp(
                 try {
                     val more = plexClient.fetchSonicallySimilarTracks(curr?.ratingKey, limit = 15)
                     if (more.isNotEmpty()) {
-                        val existing = currentQueue.map { it.uri }.toSet()
-                        val newItems = more.filter { it.uri !in existing }
+                        val newItems = filterNewSonicTracks(more, currentQueue)
                         val toAdd = if (newItems.isNotEmpty()) newItems else more
                         val nextIdx = currentQueue.size
                         val newQueue = currentQueue + toAdd
@@ -525,8 +532,7 @@ fun TapemanDesktopApp(
                 try {
                     val more = plexClient.fetchSonicallySimilarTracks(curr.ratingKey, limit = 15)
                     if (more.isNotEmpty()) {
-                        val existing = currentQueue.map { it.uri }.toSet()
-                        val newItems = more.filter { it.uri !in existing }
+                        val newItems = filterNewSonicTracks(more, currentQueue)
                         if (newItems.isNotEmpty()) {
                             currentQueue = currentQueue + newItems
                         }
