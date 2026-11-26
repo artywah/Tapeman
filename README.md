@@ -229,7 +229,6 @@ Key Source Modules:
 - [x] Interactive Tabletop (Flex mode) layout for foldables
 - [ ] Background playback for in-app Apple Music
 - [ ] Auto-reverse Side B transition at playlist end
-- [ ] Tape hiss and wow-and-flutter DSP emulation
 
 ---
 
