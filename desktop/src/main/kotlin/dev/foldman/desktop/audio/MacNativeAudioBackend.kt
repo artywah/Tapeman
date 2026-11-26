@@ -124,6 +124,9 @@ class MacNativeAudioBackend : AudioBackend {
                 _currentPositionMs.value = _durationMs.value
             }
             _isPlaying.value = false
+        } else if (line.startsWith("ERROR ")) {
+            println("[MacNativeAudioBackend] Player error: ${line.removePrefix("ERROR ")}")
+            _isPlaying.value = false
         }
     }
 
@@ -146,6 +149,8 @@ class MacNativeAudioBackend : AudioBackend {
 
     override fun play(url: String, headers: Map<String, String>) {
         lastUrl = url
+        _currentPositionMs.value = 0L
+        _durationMs.value = 0L
         send("PLAY $url")
         _isPlaying.value = true
     }

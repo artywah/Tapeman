@@ -487,7 +487,10 @@ class DesktopPlexClient(
             val partKey = if (partArr != null && partArr.length() > 0) {
                 partArr.getJSONObject(0).optString("key")
             } else ""
-            val streamUrl = authedUrl(partKey) ?: continue
+            val downloadKey = if (partKey.isNotBlank()) {
+                if (partKey.contains("?")) "$partKey&download=1" else "$partKey?download=1"
+            } else ""
+            val streamUrl = authedUrl(downloadKey) ?: continue
 
             add(
                 LocalTrack(

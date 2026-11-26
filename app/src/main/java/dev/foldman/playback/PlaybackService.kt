@@ -496,7 +496,9 @@ class PlaybackService : MediaLibraryService() {
     fun toggleSonicDj(): Boolean {
         isSonicDjActive = !isSonicDjActive
         updateCustomLayout()
-        session?.player?.let { checkSonicDjTrigger(it, forceAtEnd = true) }
+        if (isSonicDjActive) {
+            session?.player?.let { checkSonicDjTrigger(it, forceAtEnd = true, insertNext = true) }
+        }
         session?.notifyChildrenChanged(SECTION_PLAYLISTS, 0, null)
         session?.notifyChildrenChanged(SECTION_HOME, 0, null)
         return isSonicDjActive
@@ -533,7 +535,7 @@ class PlaybackService : MediaLibraryService() {
         }
     }
 
-    private fun checkSonicDjTrigger(player: Player, forceAtEnd: Boolean = false) {
+    private fun checkSonicDjTrigger(player: Player, forceAtEnd: Boolean = false, insertNext: Boolean = false) {
         if (!isSonicDjActive || isSonicDjFetching) return
         val current = player.currentMediaItem ?: return
         val ratingKey = current.mediaMetadata.extras?.getString("plex_rating_key") ?: return
@@ -544,12 +546,27 @@ class PlaybackService : MediaLibraryService() {
                 try {
                     val similar = plexClient.fetchSonicallySimilarTracks(ratingKey, limit = 10, maxDistance = 0.22f)
                     if (similar.isNotEmpty()) {
-                        val existingIds = (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId }.toSet()
-                        val newTracks = similar.filter { it.uri.toString() !in existingIds }
-                        if (newTracks.isNotEmpty()) {
-                            val items = newTracks.map(::toPlayableMediaItem)
-                            withContext(Dispatchers.Main) {
+                        withContext(Dispatchers.Main) {
+                            val currentUri = player.currentMediaItem?.mediaId
+                            val existingIds = if (insertNext) {
+                                setOfNotNull(currentUri)
+                            } else {
+                                (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId }.toSet()
+                            }
+                            val newTracks = similar.filter { it.uri.toString() !in existingIds }
+                            if (newTracks.isNotEmpty()) {
+                                val items = newTracks.map(::toPlayableMediaItem)
+                                val nextIdx = (player.currentMediaItemIndex + 1).coerceIn(0, player.mediaItemCount)
+                                if (insertNext && nextIdx < player.mediaItemCount) {
+                                    player.removeMediaItems(nextIdx, player.mediaItemCount)
+                                }
+                                val wasEnded = player.playbackState == Player.STATE_ENDED
                                 player.addMediaItems(items)
+                                if (wasEnded && nextIdx < player.mediaItemCount) {
+                                    player.seekTo(nextIdx, 0L)
+                                    player.prepare()
+                                    player.play()
+                                }
                             }
                         }
                     }

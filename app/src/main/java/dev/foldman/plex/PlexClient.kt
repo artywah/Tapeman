@@ -412,7 +412,10 @@ class PlexClient(
             val partKey = if (partArr != null && partArr.length() > 0) {
                 partArr.getJSONObject(0).optString("key")
             } else ""
-            val streamUrl = authedUrl(partKey) ?: continue
+            val downloadKey = if (partKey.isNotBlank()) {
+                if (partKey.contains("?")) "$partKey&download=1" else "$partKey?download=1"
+            } else ""
+            val streamUrl = authedUrl(downloadKey) ?: continue
 
             add(
                 LocalTrack(
@@ -481,10 +484,29 @@ class PlexClient(
         maxDistance: Float = 0.25f,
     ): List<LocalTrack> = withContext(Dispatchers.IO) {
         if (plexToken.isBlank()) return@withContext emptyList()
-        val path = "/library/metadata/$ratingKey/nearest?limit=$limit&maxDistance=$maxDistance"
-        val container = runCatching { getJson(path).optJSONObject("MediaContainer") }.getOrNull() ?: return@withContext emptyList()
-        val meta = container.optJSONArray("Metadata") ?: return@withContext emptyList()
-        parseTracksFromMetadata(meta, defaultAlbum = "Sonically Similar")
+        val cleanKey = ratingKey.removePrefix("playlist_").removePrefix("album_").removePrefix("radio_").removePrefix("artist_")
+        if (cleanKey.isNotBlank() && cleanKey.all { it.isDigit() }) {
+            // 1. Try /nearest with requested maxDistance
+            val path = "/library/metadata/$cleanKey/nearest?limit=$limit&maxDistance=$maxDistance"
+            val meta = runCatching { getJson(path).optJSONObject("MediaContainer")?.optJSONArray("Metadata") }.getOrNull()
+            if (meta != null && meta.length() > 0) {
+                val parsed = parseTracksFromMetadata(meta, defaultAlbum = "Sonically Similar")
+                if (parsed.isNotEmpty()) return@withContext parsed
+            }
+            // 2. Retry /nearest without maxDistance cap
+            val widePath = "/library/metadata/$cleanKey/nearest?limit=$limit"
+            val wideMeta = runCatching { getJson(widePath).optJSONObject("MediaContainer")?.optJSONArray("Metadata") }.getOrNull()
+            if (wideMeta != null && wideMeta.length() > 0) {
+                val parsed = parseTracksFromMetadata(wideMeta, defaultAlbum = "Sonically Similar")
+                if (parsed.isNotEmpty()) return@withContext parsed
+            }
+        }
+        // 3. Fallback: random tracks from music section
+        val sId = runCatching { findMusicSectionId() }.getOrNull() ?: return@withContext emptyList()
+        val randPath = "/library/sections/$sId/all?type=10&sort=random&X-Plex-Container-Start=0&X-Plex-Container-Size=$limit"
+        val randMeta = runCatching { getJson(randPath).optJSONObject("MediaContainer")?.optJSONArray("Metadata") }.getOrNull()
+            ?: return@withContext emptyList()
+        parseTracksFromMetadata(randMeta, defaultAlbum = "Sonic Flow")
     }
 
     suspend fun fetchStationTracks(ratingKey: String): List<LocalTrack> = withContext(Dispatchers.IO) {

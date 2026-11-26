@@ -495,10 +495,23 @@ fun TapemanDesktopApp(
         }
     }
 
+    // Track which queue index we already auto-advanced from to prevent double-skipping while next track loads
+    var lastAutoAdvancedIndex by remember { mutableIntStateOf(-1) }
+    LaunchedEffect(activeTrackUrl, currentTrackIndex) {
+        if (isPlaying) {
+            lastAutoAdvancedIndex = -1
+        }
+    }
+
     // Auto-advance to next track when song finishes (or continuously advance via Sonic DJ)
-    LaunchedEffect(isPlaying, audioPosMs, effectiveDurMs, hasNext, isSonicDjActive) {
+    LaunchedEffect(isPlaying, audioPosMs, effectiveDurMs, hasNext, isSonicDjActive, currentTrackIndex) {
+        if (isPlaying) {
+            lastAutoAdvancedIndex = -1
+            return@LaunchedEffect
+        }
         val atEnd = effectiveDurMs > 0 && (audioPosMs >= effectiveDurMs - 1500L || (audioPosMs > 0 && audioPosMs == effectiveDurMs))
-        if (!isPlaying && atEnd && (hasNext || isSonicDjActive)) {
+        if (atEnd && (hasNext || isSonicDjActive) && lastAutoAdvancedIndex != currentTrackIndex) {
+            lastAutoAdvancedIndex = currentTrackIndex
             playNext()
         }
     }
@@ -947,8 +960,12 @@ fun TapemanDesktopApp(
                                 }
                             },
                             onTrackSelected = { track, queue, album ->
-                                val idx = queue.indexOfFirst { it.uri == track.uri }.coerceAtLeast(0)
-                                playPlexTrack(track, album, queue, idx)
+                                if (isSonicDjActive) {
+                                    playPlexTrack(track, album, listOf(track), 0)
+                                } else {
+                                    val idx = queue.indexOfFirst { it.uri == track.uri }.coerceAtLeast(0)
+                                    playPlexTrack(track, album, queue, idx)
+                                }
                             },
                             onPlayAlbumDirectly = ::playAlbumDirectly,
                             onOpenConnectDialog = { showPlexDialog = true },
