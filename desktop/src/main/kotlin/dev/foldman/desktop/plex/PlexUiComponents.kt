@@ -1162,14 +1162,50 @@ fun PlexMusicBrowser(
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp,
-                            maxLines = 1
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
-                        Text(
-                            text = if (selectedAlbum?.isPlaylist == true) "Playlist · ${selectedAlbum?.trackCount ?: 0} tracks" else "${selectedAlbum?.artist ?: ""} · ${selectedAlbum?.year ?: ""}",
-                            color = Color(0xFFA0A4AE),
-                            fontSize = 11.sp,
-                            maxLines = 1
-                        )
+                        val alb = selectedAlbum
+                        if (alb?.isPlaylist == true) {
+                            Text(
+                                text = "Playlist · ${alb.trackCount} tracks",
+                                color = Color(0xFFA0A4AE),
+                                fontSize = 11.sp,
+                                maxLines = 1
+                            )
+                        } else if (alb != null) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "${alb.artist} ›",
+                                    color = Color(0xFFE5A00D),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .clickable {
+                                            scope.launch {
+                                                val artist = client.resolveArtistForAlbum(alb)
+                                                if (artist != null) {
+                                                    selectedAlbum = null
+                                                    albumTracks = emptyList()
+                                                    openArtist(artist)
+                                                }
+                                            }
+                                        }
+                                        .padding(vertical = 1.dp)
+                                )
+                                if (alb.year > 0) {
+                                    Text(
+                                        text = " · ${alb.year}",
+                                        color = Color(0xFFA0A4AE),
+                                        fontSize = 11.sp,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
 

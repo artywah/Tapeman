@@ -291,6 +291,32 @@ class DesktopPlexClient(
         parseAlbums(meta)
     }
 
+    suspend fun resolveArtistForAlbum(album: PlexAlbum): PlexArtist? = withContext(Dispatchers.IO) {
+        if (!isConfigured() || album.isPlaylist) return@withContext null
+        // 1. Try /library/metadata/{albumId} for parentRatingKey (artist key)
+        if (album.id.isNotBlank() && album.id.all { it.isDigit() }) {
+            val meta = runCatching {
+                getJson("/library/metadata/${album.id}").optJSONObject("MediaContainer")?.optJSONArray("Metadata")?.optJSONObject(0)
+            }.getOrNull()
+            val artistKey = meta?.optString("parentRatingKey")?.takeIf { it.isNotBlank() }
+            if (artistKey != null) {
+                val artistName = meta.optString("parentTitle").ifBlank { album.artist }
+                val artistThumb = meta.optString("parentThumb").takeIf { it.isNotBlank() }
+                return@withContext PlexArtist(
+                    id = artistKey,
+                    name = artistName,
+                    thumbUrl = authedUrl(artistThumb) ?: album.coverUrl
+                )
+            }
+        }
+        // 2. Fallback: search artists by name
+        if (album.artist.isNotBlank()) {
+            val matches = fetchArtists(searchQuery = album.artist, limit = 5)
+            return@withContext matches.firstOrNull { it.name.equals(album.artist, ignoreCase = true) } ?: matches.firstOrNull()
+        }
+        null
+    }
+
     suspend fun fetchArtistAlbums(artistId: String): List<PlexAlbum> = withContext(Dispatchers.IO) {
         if (!isConfigured()) return@withContext emptyList()
         val cleanId = artistId.removePrefix("artist_")
