@@ -370,6 +370,9 @@ class DeckViewModel(app: Application) : AndroidViewModel(app) {
         // One tape in the deck at a time: ejecting stops the old one.
         if (backend.state.value.isPlaying) backend.pause()
         source = newSource
+        if (newSource != Source.PLEX && plex.value.isSonicDjActive) {
+            toggleSonicDj()
+        }
         prefs.edit { putString(KEY_SOURCE, newSource.name) }
         stopped = !backend.state.value.isPlaying
         if (newSource == Source.PLEX && plex.value.items.isEmpty() && !plex.value.loading) {

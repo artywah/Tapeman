@@ -623,7 +623,7 @@ fun TapemanDesktopApp(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            if (isSonicDjActive) {
+                            if (savedConfig != null && isSonicDjActive) {
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(5.dp))
@@ -846,27 +846,29 @@ fun TapemanDesktopApp(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            // Sonic DJ Active Indicator / Quick Toggle
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(if (isSonicDjActive) Color(0xFF003840) else Color(0xFF17181C))
-                                    .border(
-                                        1.dp,
-                                        if (isSonicDjActive) Color(0xFF00E5FF) else Color(0xFF333640),
-                                        RoundedCornerShape(6.dp)
-                                    )
-                                    .clickable { toggleSonicDj() }
-                                    .padding(horizontal = 9.dp, vertical = 5.dp)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text("🎧", fontSize = 11.sp)
-                                    Text(
-                                        text = if (isSonicDjActive) "SONIC DJ: ON" else "Sonic DJ",
-                                        color = if (isSonicDjActive) Color(0xFF00E5FF) else Color(0xFFDFDFE5),
-                                        fontSize = 11.sp,
-                                        fontWeight = if (isSonicDjActive) FontWeight.Bold else FontWeight.Medium
-                                    )
+                            // Sonic DJ Active Indicator / Quick Toggle (Plex-only)
+                            if (savedConfig != null) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(if (isSonicDjActive) Color(0xFF003840) else Color(0xFF17181C))
+                                        .border(
+                                            1.dp,
+                                            if (isSonicDjActive) Color(0xFF00E5FF) else Color(0xFF333640),
+                                            RoundedCornerShape(6.dp)
+                                        )
+                                        .clickable { toggleSonicDj() }
+                                        .padding(horizontal = 9.dp, vertical = 5.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text("🎧", fontSize = 11.sp)
+                                        Text(
+                                            text = if (isSonicDjActive) "SONIC DJ: ON" else "Sonic DJ",
+                                            color = if (isSonicDjActive) Color(0xFF00E5FF) else Color(0xFFDFDFE5),
+                                            fontSize = 11.sp,
+                                            fontWeight = if (isSonicDjActive) FontWeight.Bold else FontWeight.Medium
+                                        )
+                                    }
                                 }
                             }
 
@@ -1279,6 +1281,8 @@ fun TapemanDesktopApp(
                     onDisconnect = {
                         authService.clearConfig()
                         savedConfig = null
+                        isSonicDjActive = false
+                        isHolidaySonicSession = false
                         audioBackend.stop()
                         activeTrackUrl = null
                     },

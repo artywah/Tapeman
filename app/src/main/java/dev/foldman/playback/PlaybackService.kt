@@ -136,10 +136,8 @@ class PlaybackService : MediaLibraryService() {
                 if (events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION)) {
                     val currentItem = player.currentMediaItem
                     val isFav = currentItem?.mediaMetadata?.extras?.getBoolean("is_favorite") ?: false
-                    if (isFav != isFavoriteActive) {
-                        isFavoriteActive = isFav
-                        updateCustomLayout()
-                    }
+                    isFavoriteActive = isFav
+                    updateCustomLayout()
                     checkSonicDjTrigger(player)
                 }
 
@@ -462,6 +460,12 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private fun buildCustomLayout(): ImmutableList<CommandButton> {
+        val isPlexTrack = plexClient.plexToken.isNotBlank() &&
+            session?.player?.currentMediaItem?.mediaMetadata?.extras?.getString("plex_rating_key") != null
+        if (!isPlexTrack) {
+            return ImmutableList.of()
+        }
+
         val favCmd = SessionCommand(CUSTOM_COMMAND_FAVORITE, Bundle.EMPTY)
         val radioCmd = SessionCommand(CUSTOM_COMMAND_SONIC_RADIO, Bundle.EMPTY)
         val djCmd = SessionCommand(CUSTOM_COMMAND_SONIC_DJ, Bundle.EMPTY)
