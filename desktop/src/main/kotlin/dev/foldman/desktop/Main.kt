@@ -64,12 +64,18 @@ import dev.foldman.desktop.audio.DesktopAudioRouter
 import dev.foldman.desktop.audio.DesktopMechSounds
 import dev.foldman.desktop.device.DeviceDiscoveryService
 import dev.foldman.desktop.device.DeviceType
+import dev.foldman.desktop.local.DesktopLocalBrowser
+import dev.foldman.desktop.local.DesktopLocalLibrary
 import dev.foldman.desktop.plex.ConnectToDeviceDialog
 import dev.foldman.desktop.plex.DesktopPlexClient
 import dev.foldman.desktop.plex.PlexAuthService
 import dev.foldman.desktop.plex.PlexConnectionDialog
 import dev.foldman.desktop.plex.PlexMusicBrowser
 import dev.foldman.desktop.plex.PlexSavedConfig
+import dev.foldman.desktop.spotify.DesktopSpotifyBrowser
+import dev.foldman.desktop.spotify.DesktopSpotifyClient
+import dev.foldman.desktop.spotify.DesktopSpotifyCollection
+import dev.foldman.desktop.spotify.DesktopSpotifyPlaybackState
 import dev.foldman.ui.DeckColors
 import dev.foldman.ui.LocalHaptics
 import dev.foldman.ui.LocalMechSounds
@@ -145,6 +151,12 @@ fun main() = application {
     }
 }
 
+enum class DesktopSource(val label: String) {
+    PLEX("Plex Server"),
+    LOCAL("Local Folder"),
+    SPOTIFY("Spotify"),
+}
+
 @Composable
 fun TapemanDesktopApp(
     mechSounds: DesktopMechSounds,
@@ -167,9 +179,43 @@ fun TapemanDesktopApp(
     }
 
     var savedConfig by remember { mutableStateOf(authService.loadConfig()) }
+    var activeSource by remember { mutableStateOf(DesktopSource.PLEX) }
     var showPlexDialog by remember { mutableStateOf(false) }
     var showDeviceDialog by remember { mutableStateOf(false) }
     var isSonicDjActive by remember { mutableStateOf(false) }
+
+    // Local folder state
+    var localFolder by remember { mutableStateOf(DesktopLocalLibrary.loadSavedFolder()) }
+    var localTracks by remember { mutableStateOf<List<LocalTrack>>(emptyList()) }
+    LaunchedEffect(localFolder) {
+        localTracks = localFolder?.let { DesktopLocalLibrary.scanFolder(it) } ?: emptyList()
+    }
+
+    var albumArtwork by remember { mutableStateOf<ImageBitmap?>(null) }
+
+    // Spotify Connect state
+    val spotifyClient = remember { DesktopSpotifyClient() }
+    var spotifySignedIn by remember { mutableStateOf(spotifyClient.isSignedIn()) }
+    var spotifyPlayback by remember { mutableStateOf<DesktopSpotifyPlaybackState?>(null) }
+    var currentSpotifyCollection by remember { mutableStateOf<DesktopSpotifyCollection?>(null) }
+    var navigateToSpotifyRequest by remember { mutableStateOf<Pair<DesktopSpotifyCollection, Int>?>(null) }
+    var lastSpotifyArtUrl by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(activeSource, spotifySignedIn) {
+        if (activeSource == DesktopSource.SPOTIFY && spotifySignedIn) {
+            while (isActive) {
+                val st = spotifyClient.getPlaybackState()
+                if (st != null) {
+                    spotifyPlayback = st
+                    if (!st.artworkUrl.isNullOrBlank() && st.artworkUrl != lastSpotifyArtUrl) {
+                        lastSpotifyArtUrl = st.artworkUrl
+                        albumArtwork = spotifyClient.loadArtwork(st.artworkUrl)
+                    }
+                }
+                delay(1500)
+            }
+        }
+    }
 
     // Sound effects toggle state (synced with hardware switch & persistent config)
     var keySoundsEnabled by remember { mutableStateOf(savedConfig?.keySounds ?: true) }
@@ -201,7 +247,6 @@ fun TapemanDesktopApp(
     var trackTitle by remember { mutableStateOf("Automatic Music Sensor") }
     var trackArtist by remember { mutableStateOf("Arty · Tapeman") }
     var albumTitle by remember { mutableStateOf("Type IV Metal Master") }
-    var albumArtwork by remember { mutableStateOf<ImageBitmap?>(null) }
     var activeTrackUrl by remember { mutableStateOf<String?>(null) }
     var currentQueue by remember { mutableStateOf<List<LocalTrack>>(emptyList()) }
     var currentTrackIndex by remember { mutableIntStateOf(0) }
@@ -211,13 +256,17 @@ fun TapemanDesktopApp(
     var navCounter by remember { mutableIntStateOf(0) }
 
     // Audio engine state bindings
-    val isPlaying by audioBackend.isPlaying.collectAsState()
-    val audioPosMs by audioBackend.currentPositionMs.collectAsState()
+    val localAudioIsPlaying by audioBackend.isPlaying.collectAsState()
+    val localAudioPosMs by audioBackend.currentPositionMs.collectAsState()
     val audioDurMs by audioBackend.durationMs.collectAsState()
     val audioVolume by audioBackend.volume.collectAsState()
 
+    val isSpotifyMode = activeSource == DesktopSource.SPOTIFY
+    val isPlaying = if (isSpotifyMode) (spotifyPlayback?.isPlaying == true) else localAudioIsPlaying
+    val audioPosMs = if (isSpotifyMode) (spotifyPlayback?.positionMs ?: 0L) else localAudioPosMs
+
     LaunchedEffect(audioVolume) {
-        volume = audioVolume
+        if (!isSpotifyMode) volume = audioVolume
     }
 
     // Winding state: -1 for REW, +1 for FF, 0 for idle
@@ -227,8 +276,10 @@ fun TapemanDesktopApp(
     var windJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
     val displayPosMs = if (winding != 0) windPosMs else audioPosMs
-    val positionMs = if (activeTrackUrl != null) displayPosMs else 46000L
+    val hasActivePlayback = if (isSpotifyMode) (spotifyPlayback?.trackTitle?.isNotBlank() == true) else (activeTrackUrl != null)
+    val positionMs = if (hasActivePlayback) displayPosMs else 46000L
     val effectiveDurMs = when {
+        isSpotifyMode -> spotifyPlayback?.durationMs ?: 0L
         activeTrackUrl != null && audioDurMs > 0L -> audioDurMs
         activeTrackUrl != null && currentTrackDurationMs > 0L -> currentTrackDurationMs
         else -> 0L
@@ -240,19 +291,27 @@ fun TapemanDesktopApp(
         winding < 0 -> Transport.REWINDING
         winding > 0 -> Transport.FAST_FORWARDING
         isPlaying -> Transport.PLAYING
-        displayPosMs > 0L -> Transport.PAUSED
+        displayPosMs > 0L && hasActivePlayback -> Transport.PAUSED
         else -> Transport.STOPPED
     }
 
-    val hasNext = currentQueue.isNotEmpty() && currentTrackIndex < currentQueue.size - 1
-    val hasPrevious = currentQueue.isNotEmpty() && currentTrackIndex > 0
+    val hasNext = if (isSpotifyMode) true else (currentQueue.isNotEmpty() && currentTrackIndex < currentQueue.size - 1)
+    val hasPrevious = if (isSpotifyMode) true else (currentQueue.isNotEmpty() && currentTrackIndex > 0)
+
+    val effectiveTitle = if (isSpotifyMode) (spotifyPlayback?.trackTitle?.takeIf { it.isNotBlank() } ?: "Spotify Connect") else trackTitle
+    val effectiveArtist = if (isSpotifyMode) (spotifyPlayback?.trackArtist.orEmpty().ifBlank { "Open Spotify on any device" }) else trackArtist
+    val effectiveAlbum = if (isSpotifyMode) (spotifyPlayback?.albumTitle.orEmpty()) else albumTitle
 
     val ui = DeckUi(
-        source = Source.PLEX,
+        source = when (activeSource) {
+            DesktopSource.PLEX -> Source.PLEX
+            DesktopSource.LOCAL -> Source.LOCAL
+            DesktopSource.SPOTIFY -> Source.SPOTIFY
+        },
         transport = transport,
-        title = trackTitle,
-        artist = trackArtist,
-        album = albumTitle,
+        title = effectiveTitle,
+        artist = effectiveArtist,
+        album = effectiveAlbum,
         artwork = albumArtwork,
         positionMs = positionMs,
         durationMs = durationMs,
@@ -473,11 +532,60 @@ fun TapemanDesktopApp(
         }
     }
 
+    fun selectDesktopSource(next: DesktopSource) {
+        if (next == activeSource) return
+        mechSounds.switchFlip()
+        if (next != DesktopSource.PLEX) {
+            isSonicDjActive = false
+            isHolidaySonicSession = false
+        }
+        if (activeSource == DesktopSource.SPOTIFY && next != DesktopSource.SPOTIFY) {
+            scope.launch { spotifyClient.pause() }
+        } else if (next == DesktopSource.SPOTIFY && localAudioIsPlaying) {
+            audioBackend.pause()
+        }
+        activeSource = next
+    }
+
+    fun playLocalTrack(track: LocalTrack, queue: List<LocalTrack>, index: Int) {
+        activeSource = DesktopSource.LOCAL
+        isSonicDjActive = false
+        isHolidaySonicSession = false
+        trackTitle = track.title
+        trackArtist = track.artist
+        albumTitle = track.folder
+        activeTrackUrl = track.uri
+        currentQueue = queue
+        currentTrackIndex = index
+        currentAlbum = null
+        currentTrackDurationMs = track.durationMs
+        albumArtwork = null
+
+        audioBackend.setTrackInfo(
+            title = track.title,
+            artist = track.artist,
+            album = track.folder,
+            coverUrl = null,
+            durationMs = track.durationMs
+        )
+        mechSounds.keyDown()
+        slideTapeIn()
+        audioBackend.play(track.uri)
+    }
+
     fun playPrevious() {
         mechSounds.keyDown()
+        if (isSpotifyMode) {
+            scope.launch { spotifyClient.previous() }
+            return
+        }
         if (currentQueue.isNotEmpty() && currentTrackIndex > 0) {
             val prevIdx = currentTrackIndex - 1
-            playPlexTrack(currentQueue[prevIdx], currentAlbum, currentQueue, prevIdx)
+            if (activeSource == DesktopSource.LOCAL) {
+                playLocalTrack(currentQueue[prevIdx], currentQueue, prevIdx)
+            } else {
+                playPlexTrack(currentQueue[prevIdx], currentAlbum, currentQueue, prevIdx)
+            }
         } else if (activeTrackUrl != null) {
             audioBackend.seekTo(0L)
         }
@@ -485,11 +593,19 @@ fun TapemanDesktopApp(
 
     fun playNext() {
         mechSounds.keyDown()
+        if (isSpotifyMode) {
+            scope.launch { spotifyClient.next() }
+            return
+        }
         if (currentQueue.isNotEmpty() && currentTrackIndex < currentQueue.size - 1) {
             val nextIdx = currentTrackIndex + 1
             val nextTrack = currentQueue[nextIdx]
-            playPlexTrack(nextTrack, currentAlbum, currentQueue, nextIdx)
-        } else if (isSonicDjActive && !isSonicReplenishing) {
+            if (activeSource == DesktopSource.LOCAL) {
+                playLocalTrack(nextTrack, currentQueue, nextIdx)
+            } else {
+                playPlexTrack(nextTrack, currentAlbum, currentQueue, nextIdx)
+            }
+        } else if (activeSource == DesktopSource.PLEX && isSonicDjActive && !isSonicReplenishing) {
             // Reached end of current queue with Sonic DJ on: fetch more immediately and play!
             isSonicReplenishing = true
             val curr = currentQueue.getOrNull(currentTrackIndex)
@@ -520,13 +636,14 @@ fun TapemanDesktopApp(
     }
 
     // Auto-advance to next track when song finishes (or continuously advance via Sonic DJ)
-    LaunchedEffect(isPlaying, audioPosMs, effectiveDurMs, hasNext, isSonicDjActive, currentTrackIndex) {
+    LaunchedEffect(isPlaying, audioPosMs, effectiveDurMs, hasNext, isSonicDjActive, currentTrackIndex, activeSource) {
+        if (isSpotifyMode) return@LaunchedEffect
         if (isPlaying) {
             lastAutoAdvancedIndex = -1
             return@LaunchedEffect
         }
         val atEnd = effectiveDurMs > 0 && (audioPosMs >= effectiveDurMs - 1500L || (audioPosMs > 0 && audioPosMs == effectiveDurMs))
-        if (atEnd && (hasNext || isSonicDjActive) && lastAutoAdvancedIndex != currentTrackIndex) {
+        if (atEnd && (hasNext || (activeSource == DesktopSource.PLEX && isSonicDjActive)) && lastAutoAdvancedIndex != currentTrackIndex) {
             lastAutoAdvancedIndex = currentTrackIndex
             playNext()
         }
@@ -623,7 +740,7 @@ fun TapemanDesktopApp(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            if (savedConfig != null && isSonicDjActive) {
+                            if (activeSource == DesktopSource.PLEX && savedConfig != null && isSonicDjActive) {
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(5.dp))
@@ -730,7 +847,15 @@ fun TapemanDesktopApp(
                                 }
                             },
                             onPlayToggle = {
-                                if (isPlaying) {
+                                if (isSpotifyMode) {
+                                    if (isPlaying) {
+                                        mechSounds.pause()
+                                        scope.launch { spotifyClient.pause() }
+                                    } else {
+                                        mechSounds.play()
+                                        scope.launch { spotifyClient.resume() }
+                                    }
+                                } else if (isPlaying) {
                                     mechSounds.pause()
                                     audioBackend.pause()
                                 } else {
@@ -745,17 +870,17 @@ fun TapemanDesktopApp(
                             },
                             onStop = {
                                 mechSounds.autoStop()
-                                audioBackend.stop()
+                                if (isSpotifyMode) scope.launch { spotifyClient.pause() } else audioBackend.stop()
                             },
                             onRewind = {
                                 mechSounds.keyUp()
                                 val newPos = (displayPosMs - 15000L).coerceAtLeast(0L)
-                                audioBackend.seekTo(newPos)
+                                if (isSpotifyMode) scope.launch { spotifyClient.seek(newPos) } else audioBackend.seekTo(newPos)
                             },
                             onFastForward = {
                                 mechSounds.keyUp()
                                 val newPos = (displayPosMs + 15000L).coerceAtMost(durationMs)
-                                audioBackend.seekTo(newPos)
+                                if (isSpotifyMode) scope.launch { spotifyClient.seek(newPos) } else audioBackend.seekTo(newPos)
                             },
                             onRewindHold = handleRewindHold,
                             onFastForwardHold = handleFastForwardHold,
@@ -763,7 +888,7 @@ fun TapemanDesktopApp(
                             onPrevious = ::playPrevious,
                             onSetVolume = {
                                 volume = it
-                                audioBackend.setVolume(it)
+                                if (isSpotifyMode) scope.launch { spotifyClient.setVolume(it) } else audioBackend.setVolume(it)
                             },
                             onToggleHold = {
                                 holdLocked = !holdLocked
@@ -847,7 +972,7 @@ fun TapemanDesktopApp(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             // Sonic DJ Active Indicator / Quick Toggle (Plex-only)
-                            if (savedConfig != null) {
+                            if (activeSource == DesktopSource.PLEX && savedConfig != null) {
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(6.dp))
@@ -962,37 +1087,128 @@ fun TapemanDesktopApp(
                         horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        // Left Pane: Plex Music Browser (always displayed)
-                        PlexMusicBrowser(
-                            client = plexClient,
-                            currentConfig = savedConfig,
-                            isSonicDjActive = isSonicDjActive,
-                            onToggleSonicDj = ::toggleSonicDj,
-                            onSwitchLibrary = { newSecId, newSecName ->
-                                savedConfig?.let { cfg ->
-                                    val updated = cfg.copy(libraryName = newSecName, librarySectionId = newSecId)
-                                    authService.saveConfig(updated)
-                                    savedConfig = updated
-                                    plexClient.sectionId = newSecId
-                                }
-                            },
-                            onTrackSelected = { track, queue, album ->
-                                if (isSonicDjActive) {
-                                    isHolidaySonicSession = plexClient.isHolidayTitleOrAlbum(track.title, album.title)
-                                    playPlexTrack(track, album, listOf(track), 0)
-                                } else {
-                                    val idx = queue.indexOfFirst { it.uri == track.uri }.coerceAtLeast(0)
-                                    playPlexTrack(track, album, queue, idx)
-                                }
-                            },
-                            onPlayAlbumDirectly = ::playAlbumDirectly,
-                            onOpenConnectDialog = { showPlexDialog = true },
-                            activeTrackUri = activeTrackUrl,
-                            navigateToAlbumRequest = navigateToAlbumRequest,
+                        // Left Pane: Source Switcher + Active Browser
+                        Column(
                             modifier = Modifier
                                 .weight(1.05f)
                                 .fillMaxHeight()
-                        )
+                        ) {
+                            // Source Switcher Pill Bar
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "SOURCE:",
+                                    color = Color(0xFF727680),
+                                    fontSize = 9.5.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.sp
+                                )
+                                DesktopSource.entries.forEach { src ->
+                                    val isSelected = src == activeSource
+                                    val accent = when (src) {
+                                        DesktopSource.PLEX -> Color(0xFFE5A00D)
+                                        DesktopSource.LOCAL -> Color(0xFF60A5FA)
+                                        DesktopSource.SPOTIFY -> Color(0xFF1DB954)
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(if (isSelected) accent.copy(alpha = 0.16f) else Color(0xFF17181C))
+                                            .border(
+                                                1.dp,
+                                                if (isSelected) accent else Color(0xFF2B2E38),
+                                                RoundedCornerShape(6.dp)
+                                            )
+                                            .clickable { selectDesktopSource(src) }
+                                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                                    ) {
+                                        Text(
+                                            text = src.label,
+                                            color = if (isSelected) accent else Color(0xFFA0A4AE),
+                                            fontSize = 11.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                        )
+                                    }
+                                }
+                            }
+
+                            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                                when (activeSource) {
+                                    DesktopSource.PLEX -> {
+                                        PlexMusicBrowser(
+                                            client = plexClient,
+                                            currentConfig = savedConfig,
+                                            isSonicDjActive = isSonicDjActive,
+                                            onToggleSonicDj = ::toggleSonicDj,
+                                            onSwitchLibrary = { newSecId, newSecName ->
+                                                savedConfig?.let { cfg ->
+                                                    val updated = cfg.copy(libraryName = newSecName, librarySectionId = newSecId)
+                                                    authService.saveConfig(updated)
+                                                    savedConfig = updated
+                                                    plexClient.sectionId = newSecId
+                                                }
+                                            },
+                                            onTrackSelected = { track, queue, album ->
+                                                if (isSonicDjActive) {
+                                                    isHolidaySonicSession = plexClient.isHolidayTitleOrAlbum(track.title, album.title)
+                                                    playPlexTrack(track, album, listOf(track), 0)
+                                                } else {
+                                                    val idx = queue.indexOfFirst { it.uri == track.uri }.coerceAtLeast(0)
+                                                    playPlexTrack(track, album, queue, idx)
+                                                }
+                                            },
+                                            onPlayAlbumDirectly = ::playAlbumDirectly,
+                                            onOpenConnectDialog = { showPlexDialog = true },
+                                            activeTrackUri = activeTrackUrl,
+                                            navigateToAlbumRequest = navigateToAlbumRequest,
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    }
+                                    DesktopSource.LOCAL -> {
+                                        DesktopLocalBrowser(
+                                            activeFolder = localFolder,
+                                            tracks = localTracks,
+                                            activeTrackUri = activeTrackUrl,
+                                            onPickFolder = {
+                                                mechSounds.keyDown()
+                                                DesktopLocalLibrary.pickFolder()?.let { chosen ->
+                                                    DesktopLocalLibrary.saveFolder(chosen)
+                                                    localFolder = chosen
+                                                }
+                                            },
+                                            onTrackSelected = { track, queue, idx ->
+                                                playLocalTrack(track, queue, idx)
+                                            },
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    }
+                                    DesktopSource.SPOTIFY -> {
+                                        DesktopSpotifyBrowser(
+                                            client = spotifyClient,
+                                            activeTrackUri = spotifyPlayback?.trackUri,
+                                            navigateToCollectionRequest = navigateToSpotifyRequest,
+                                            onSignedInChanged = { spotifySignedIn = it },
+                                            onPlayTrack = { col, track, idx ->
+                                                currentSpotifyCollection = col
+                                                mechSounds.keyDown()
+                                                slideTapeIn()
+                                                scope.launch {
+                                                    spotifyClient.startPlayback(col.uri, idx)
+                                                    spotifyPlayback = spotifyClient.getPlaybackState()
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    }
+                                }
+                            }
+                        }
 
                         // Right Pane: Authentic Retro Walkman Hardware Player Unit
                         Column(
@@ -1032,7 +1248,15 @@ fun TapemanDesktopApp(
                                         }
                                     },
                                     onPlayToggle = {
-                                        if (isPlaying) {
+                                        if (isSpotifyMode) {
+                                            if (isPlaying) {
+                                                mechSounds.pause()
+                                                scope.launch { spotifyClient.pause() }
+                                            } else {
+                                                mechSounds.play()
+                                                scope.launch { spotifyClient.resume() }
+                                            }
+                                        } else if (isPlaying) {
                                             mechSounds.pause()
                                             audioBackend.pause()
                                         } else {
@@ -1047,17 +1271,17 @@ fun TapemanDesktopApp(
                                     },
                                     onStop = {
                                         mechSounds.autoStop()
-                                        audioBackend.stop()
+                                        if (isSpotifyMode) scope.launch { spotifyClient.pause() } else audioBackend.stop()
                                     },
                                     onRewind = {
                                         mechSounds.keyUp()
                                         val newPos = (displayPosMs - 15000L).coerceAtLeast(0L)
-                                        audioBackend.seekTo(newPos)
+                                        if (isSpotifyMode) scope.launch { spotifyClient.seek(newPos) } else audioBackend.seekTo(newPos)
                                     },
                                     onFastForward = {
                                         mechSounds.keyUp()
                                         val newPos = (displayPosMs + 15000L).coerceAtMost(durationMs)
-                                        audioBackend.seekTo(newPos)
+                                        if (isSpotifyMode) scope.launch { spotifyClient.seek(newPos) } else audioBackend.seekTo(newPos)
                                     },
                                     onRewindHold = handleRewindHold,
                                     onFastForwardHold = handleFastForwardHold,
@@ -1065,7 +1289,7 @@ fun TapemanDesktopApp(
                                     onPrevious = ::playPrevious,
                                     onSetVolume = {
                                         volume = it
-                                        audioBackend.setVolume(it)
+                                        if (isSpotifyMode) scope.launch { spotifyClient.setVolume(it) } else audioBackend.setVolume(it)
                                     },
                                     onToggleHold = {
                                         holdLocked = !holdLocked
@@ -1153,16 +1377,25 @@ fun TapemanDesktopApp(
                             Spacer(Modifier.height(8.dp))
 
                             // Now Playing Card (matches mobile view; click to jump back to album)
+                            val canJumpNowPlaying = (activeSource == DesktopSource.PLEX && currentAlbum != null && activeTrackUrl != null) ||
+                                (activeSource == DesktopSource.SPOTIFY && currentSpotifyCollection != null)
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(Color(0xFF141619))
                                     .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(10.dp))
-                                    .clickable(enabled = currentAlbum != null && activeTrackUrl != null) {
-                                        currentAlbum?.let { alb ->
-                                            mechSounds.keyDown()
-                                            navigateToAlbumRequest = alb to (++navCounter)
+                                    .clickable(enabled = canJumpNowPlaying) {
+                                        if (activeSource == DesktopSource.SPOTIFY) {
+                                            currentSpotifyCollection?.let { col ->
+                                                mechSounds.keyDown()
+                                                navigateToSpotifyRequest = col to (++navCounter)
+                                            }
+                                        } else {
+                                            currentAlbum?.let { alb ->
+                                                mechSounds.keyDown()
+                                                navigateToAlbumRequest = alb to (++navCounter)
+                                            }
                                         }
                                     }
                                     .padding(horizontal = 10.dp, vertical = 8.dp),
@@ -1184,15 +1417,15 @@ fun TapemanDesktopApp(
 
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = if (activeTrackUrl != null) trackTitle else "No tape playing",
+                                        text = if (hasActivePlayback) effectiveTitle else "No tape playing",
                                         color = Color.White,
                                         fontSize = 12.5.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                     )
-                                    val byLine = if (activeTrackUrl != null) {
-                                        listOf(trackArtist, albumTitle).filter { it.isNotBlank() }.joinToString(" · ")
+                                    val byLine = if (hasActivePlayback) {
+                                        listOf(effectiveArtist, effectiveAlbum).filter { it.isNotBlank() }.joinToString(" · ")
                                     } else {
                                         "Select a track or album from your library"
                                     }
@@ -1209,8 +1442,8 @@ fun TapemanDesktopApp(
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
-                                        val dispPos = if (activeTrackUrl != null) positionMs else 0L
-                                        val dispDur = if (activeTrackUrl != null && effectiveDurMs > 0L) effectiveDurMs else 0L
+                                        val dispPos = if (hasActivePlayback) positionMs else 0L
+                                        val dispDur = if (hasActivePlayback && effectiveDurMs > 0L) effectiveDurMs else 0L
                                         Text(
                                             text = "${formatTimeMs(dispPos)} / ${formatTimeMs(dispDur)}",
                                             color = Color(0xFFA0A4AE),
@@ -1219,18 +1452,25 @@ fun TapemanDesktopApp(
                                         )
                                         Text(
                                             text = buildString {
-                                                append(if (currentDevice.type != DeviceType.MAC) currentDevice.name.uppercase() else "PLEX")
+                                                append(
+                                                    when {
+                                                        isSpotifyMode -> spotifyPlayback?.deviceName?.takeIf { it.isNotBlank() }?.uppercase() ?: "SPOTIFY"
+                                                        currentDevice.type != DeviceType.MAC -> currentDevice.name.uppercase()
+                                                        activeSource == DesktopSource.LOCAL -> "LOCAL"
+                                                        else -> "PLEX"
+                                                    }
+                                                )
                                                 if (dbbEnabled) append(" · DBB")
                                                 if (avlsEnabled) append(" · AVLS")
                                             },
-                                            color = Color(0xFFE5A00D),
+                                            color = if (isSpotifyMode) Color(0xFF1DB954) else Color(0xFFE5A00D),
                                             fontSize = 9.5.sp,
                                             fontFamily = FontFamily.Monospace,
                                             fontWeight = FontWeight.Bold,
                                         )
                                     }
                                     Spacer(Modifier.height(3.dp))
-                                    val progressFraction = if (activeTrackUrl != null && effectiveDurMs > 0L) {
+                                    val progressFraction = if (hasActivePlayback && effectiveDurMs > 0L) {
                                         (positionMs.toFloat() / effectiveDurMs.toFloat()).coerceIn(0f, 1f)
                                     } else 0f
                                     Box(
@@ -1244,7 +1484,7 @@ fun TapemanDesktopApp(
                                             modifier = Modifier
                                                 .fillMaxWidth(progressFraction)
                                                 .fillMaxHeight()
-                                                .background(Color(0xFFE5A00D)),
+                                                .background(if (isSpotifyMode) Color(0xFF1DB954) else Color(0xFFE5A00D)),
                                         )
                                     }
                                 }
