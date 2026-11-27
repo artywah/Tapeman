@@ -84,6 +84,7 @@ class PlaybackService : MediaLibraryService() {
     private var isSonicDjActive: Boolean = false
     private var isHolidaySonicSession: Boolean = false
     private var isSonicDjFetching: Boolean = false
+    private var lastScrobbledRatingKey: String? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -134,7 +135,14 @@ class PlaybackService : MediaLibraryService() {
                 )
 
                 if (events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION)) {
+                    val prevKey = lastScrobbledRatingKey
                     val currentItem = player.currentMediaItem
+                    val rk = currentItem?.mediaMetadata?.extras?.getString("plex_rating_key")
+                    if (rk != null && rk != prevKey) {
+                        serviceScope.launch {
+                            plexClient.reportTimeline(rk, "playing", 0L, player.duration.coerceAtLeast(0L))
+                        }
+                    }
                     val isFav = currentItem?.mediaMetadata?.extras?.getBoolean("is_favorite") ?: false
                     isFavoriteActive = isFav
                     updateCustomLayout()
@@ -143,6 +151,11 @@ class PlaybackService : MediaLibraryService() {
 
                 if (events.contains(Player.EVENT_PLAYBACK_STATE_CHANGED)) {
                     if (player.playbackState == Player.STATE_ENDED) {
+                        val rk = player.currentMediaItem?.mediaMetadata?.extras?.getString("plex_rating_key")
+                        if (rk != null && lastScrobbledRatingKey != rk) {
+                            lastScrobbledRatingKey = rk
+                            serviceScope.launch { plexClient.scrobble(rk) }
+                        }
                         checkSonicDjTrigger(player, forceAtEnd = true)
                     }
                 }

@@ -70,6 +70,40 @@ class DesktopPlexClient(
         }
     }
 
+    private fun pingEndpoint(path: String) {
+        val fullUrl = if (path.startsWith("http")) path else "${serverUrl.trimEnd('/')}$path"
+        val conn = (URL(fullUrl).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 8000
+            readTimeout = 8000
+            setRequestProperty("X-Plex-Token", token)
+            setRequestProperty("X-Plex-Client-Identifier", "tapeman-desktop")
+        }
+        try {
+            conn.responseCode
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    suspend fun reportTimeline(
+        ratingKey: String?,
+        state: String,
+        timeMs: Long,
+        durationMs: Long,
+    ) = withContext(Dispatchers.IO) {
+        val rk = ratingKey?.takeIf { it.isNotBlank() && it.all { c -> c.isDigit() } } ?: return@withContext
+        if (!isConfigured()) return@withContext
+        val path = "/:/timeline?ratingKey=$rk&key=%2Flibrary%2Fmetadata%2F$rk&state=$state&time=${timeMs.coerceAtLeast(0L)}&duration=${durationMs.coerceAtLeast(0L)}"
+        runCatching { pingEndpoint(path) }
+    }
+
+    suspend fun scrobble(ratingKey: String?) = withContext(Dispatchers.IO) {
+        val rk = ratingKey?.takeIf { it.isNotBlank() && it.all { c -> c.isDigit() } } ?: return@withContext
+        if (!isConfigured()) return@withContext
+        val path = "/:/scrobble?identifier=com.plexapp.plugins.library&key=$rk"
+        runCatching { pingEndpoint(path) }
+    }
+
     suspend fun fetchAvailableLibraries(): List<Pair<String, String>> = withContext(Dispatchers.IO) {
         if (!isConfigured()) return@withContext emptyList()
         val json = runCatching { getJson("/library/sections") }.getOrNull() ?: return@withContext emptyList()

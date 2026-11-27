@@ -2,6 +2,12 @@
 
 All notable changes to Tapeman. Versions follow [semantic versioning](https://semver.org); downloads are on the [releases page](https://github.com/artywah/Tapeman/releases).
 
+## [0.6.2] — 2026-11-27
+
+### Added
+- **Plex Timeline & Scrobble Reporting (Desktop & Android):**
+  - Reports `/:/timeline` (`playing`) when Plex tracks start and `/:/scrobble` once playback passes 80% or completes, so **Jump Back In** (`lastViewedAt:desc`) and Plex play history update automatically.
+
 ## [0.6.1] — 2026-11-27
 
 ### Added

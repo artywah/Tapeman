@@ -467,6 +467,9 @@ fun TapemanDesktopApp(
         scope.launch {
             albumArtwork = plexClient.loadArtwork(track.coverUri ?: resolvedAlbum.coverUrl)
         }
+        scope.launch {
+            plexClient.reportTimeline(track.ratingKey, "playing", 0L, track.durationMs)
+        }
     }
 
     fun playAlbumDirectly(album: PlexAlbum) {
@@ -629,9 +632,24 @@ fun TapemanDesktopApp(
 
     // Track which queue index we already auto-advanced from to prevent double-skipping while next track loads
     var lastAutoAdvancedIndex by remember { mutableIntStateOf(-1) }
+    var lastScrobbledUri by remember { mutableStateOf<String?>(null) }
+
     LaunchedEffect(activeTrackUrl, currentTrackIndex) {
         if (isPlaying) {
             lastAutoAdvancedIndex = -1
+        }
+    }
+
+    // Report scrobble to Plex once track passes 80% (or ends) so "Jump Back In" and play history update
+    LaunchedEffect(activeSource, activeTrackUrl, audioPosMs, effectiveDurMs, isPlaying) {
+        if (activeSource != DesktopSource.PLEX) return@LaunchedEffect
+        val curr = currentQueue.getOrNull(currentTrackIndex) ?: return@LaunchedEffect
+        val uri = activeTrackUrl ?: return@LaunchedEffect
+        if (lastScrobbledUri == uri) return@LaunchedEffect
+        val threshold = (effectiveDurMs * 0.8f).toLong().coerceAtLeast(10_000L)
+        if (effectiveDurMs > 0L && audioPosMs >= threshold.coerceAtMost(effectiveDurMs)) {
+            lastScrobbledUri = uri
+            plexClient.scrobble(curr.ratingKey)
         }
     }
 
@@ -645,6 +663,13 @@ fun TapemanDesktopApp(
         val atEnd = effectiveDurMs > 0 && (audioPosMs >= effectiveDurMs - 1500L || (audioPosMs > 0 && audioPosMs == effectiveDurMs))
         if (atEnd && (hasNext || (activeSource == DesktopSource.PLEX && isSonicDjActive)) && lastAutoAdvancedIndex != currentTrackIndex) {
             lastAutoAdvancedIndex = currentTrackIndex
+            if (activeSource == DesktopSource.PLEX) {
+                val curr = currentQueue.getOrNull(currentTrackIndex)
+                if (curr != null && lastScrobbledUri != curr.uri) {
+                    lastScrobbledUri = curr.uri
+                    scope.launch { plexClient.scrobble(curr.ratingKey) }
+                }
+            }
             playNext()
         }
     }
