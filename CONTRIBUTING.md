@@ -23,7 +23,7 @@ adb logcat -d -b crash > crash.txt
 ./gradlew :app:assembleDebug
 ```
 
-JDK 17+ and the Android SDK (compileSdk 37) are required. Local files, Plex Server, and Spotify work fully without extra setup. MusicKit for Apple Music is optional.
+JDK 17+ and the Android SDK (compileSdk 37) are required. Local files and Plex Server work fully without extra setup. MusicKit for Apple Music is optional.
 
 ## Pull requests
 

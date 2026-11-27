@@ -12,7 +12,7 @@
 <p align="center"><b>Tapeman turns a folding phone or desktop into a digital cassette player inspired by the Sony Walkman WM-RX707.</b><br>
 Folded on a 21:9 cover screen (like the Galaxy Z Fold), it's a sideways horizontal retro tape deck with feather-touch spun-chrome logic controls, a curved hammer-tone gunmetal control pod, and a transparent Type IV Metal tape.<br>
 Unfold it and it lays down into a full studio deck with brushed aluminium plates, master stereo faders, mechanical 3-digit tape counter, real-time EX DBB dynamic bass boost, and AVLS limiter.<br>
-Stream directly from your <b>Plex Media Server</b>, browse and control <b>Spotify</b>, play local music files, or drive YT Music and Apple Music.</p>
+Stream directly from your <b>Plex Media Server</b>, play local music files, or drive Spotify, YT Music, and Apple Music via Android media sessions.</p>
 
 <p align="center">
   <a href="CHANGELOG.md"><b>Changelog</b></a> ·
@@ -50,7 +50,7 @@ Tapeman dynamically reads the device hinge and posture, adapting its interface s
 <table>
   <tr>
     <td align="center" width="34%"><img src="docs/media/cover-screen.png" alt="Cover screen: portable digital cassette deck layout" width="100%"><br><b>Folded (Cover screen)</b><br><sub>An edge-to-edge portable tape deck inspired by the Sony Walkman WM-RX707. Spun-chrome logic controls, brushed metal side panels, EX DBB and AVLS switches, dual volume faders, and a transparent Type IV Metal tape behind the viewing window.</sub></td>
-    <td align="center" width="66%"><img src="docs/media/unfolded.png" alt="Unfolded: music library and the full stereo deck" width="100%"><br><b>Unfolded (Main display)</b><br><sub>A full dual-panel studio stereo deck alongside your music library. Browse Plex, Spotify, or local storage on the left, while operating the tape deck on the right.</sub></td>
+    <td align="center" width="66%"><img src="docs/media/unfolded.png" alt="Unfolded: music library and the full stereo deck" width="100%"><br><b>Unfolded (Main display)</b><br><sub>A full dual-panel studio stereo deck alongside your music library. Browse Plex or local storage on the left, while operating the tape deck on the right.</sub></td>
   </tr>
 </table>
 
@@ -105,7 +105,7 @@ Control your music directly from your home screen with authentic analog styling:
 | | Source | How it works |
 | --- | --- | --- |
 | 🟠 | **Plex Media Server** | Connect directly to your Plex Media Server (e.g. `https://plex.yourserver.com` + `X-Plex-Token`). Browse **Artists**, **Albums**, **Recent**, **Popular**, **Playlists**, and **Favorites** with full discography drill-down, infinite scrolling, instant A–Z jump rails, and debounced live search. Features one-tap **Love / Favorite (`★`)** syncing, **Sonic Radio (`📻`)** station generation, and **Sonic DJ (DJ Freeze)** continuous mood playback. Streams directly through Tapeman's native Media3 audio engine with real-time **EX DBB dynamic bass boost**, **AVLS limiter**, continuous 12× REVIEW/CUE winding across tracks, and album art printed directly onto the cassette tape label. |
-| 🟢 | **Spotify** | Drive Spotify via media-session control out of the box, or sign in securely via **OAuth 2.0 PKCE** to browse your Spotify **Playlists** and **Saved Albums** directly inside Tapeman's Tape Shelf and Library Band. |
+| 🟢 | **Spotify** *(Android)* | Drive Spotify on Android via media-session transport control and live track metadata. |
 | 🗂 | **Local folder** | Pick any folder on the phone. Plays FLAC, MP3, AAC, M4A, OGG, Opus, WAV and more via Media3 in the background with lock screen controls and system media notifications. Embedded art or `cover.jpg` / `folder.png` is stamped onto the cassette label. |
 | 🍎 | **Apple Music** | Sign in through Apple's MusicKit to browse library playlists inside Tapeman and stream them in-app via a crash-isolated player service. |
 | ▶️ | **YT Music** (and other players) | Tapeman hooks into the system media session to drive playback, skip tracks, and display live artwork on the cassette label. |
@@ -200,7 +200,6 @@ flowchart LR
     end
     VM["DeckViewModel<br/>Transport state machine & DSP"] --> Screen
     VM --> Plex["PlexApi<br/>Direct server streaming"]
-    VM --> Spotify["SpotifyApi<br/>OAuth PKCE & Web API"]
     VM --> Local["LocalBackend<br/>Media3 ExoPlayer"]
     VM --> Remote["RemoteBackend<br/>System MediaSession listener"]
     VM --> Apple["AppleKitBackend<br/>MusicKit IPC"]
@@ -213,7 +212,6 @@ Key Source Modules:
 - [`ui/Controls.kt`](app/src/main/java/dev/foldman/ui/Controls.kt): Analog controls, volume fader pots, EX DBB and AVLS toggles, and mechanical counter.
 - [`ui/Panels.kt`](app/src/main/java/dev/foldman/ui/Panels.kt): Brushed metal textures, bevels, screws, and surface materials.
 - [`deck/DeckViewModel.kt`](app/src/main/java/dev/foldman/deck/DeckViewModel.kt): Unified transport state machine, EX DBB / AVLS audio filters, and multi-source routing.
-- [`spotify/SpotifyApi.kt`](app/src/main/java/dev/foldman/spotify/SpotifyApi.kt): Spotify Web API client with OAuth 2.0 PKCE authentication.
 
 ---
 
@@ -221,7 +219,6 @@ Key Source Modules:
 
 - [x] Digital cassette player UI inspired by the Sony Walkman WM-RX707 with spun-chrome feather-touch controls
 - [x] Direct Plex Media Server streaming with live library browsing and search
-- [x] In-app Spotify library browsing and playback control via OAuth 2.0 PKCE
 - [x] Real-time EX DBB (Dynamic Bass Boost) and AVLS audio processing
 - [x] Vintage-inspired cassette archive (TDK, Maxell, UX-Pro, HF, TEAC) with custom formulations and spinning reel physics
 - [x] Interactive Cassette Shell Inspector modal with uncropped live specs
