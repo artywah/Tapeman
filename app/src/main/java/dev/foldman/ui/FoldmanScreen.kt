@@ -426,7 +426,7 @@ fun FoldmanScreen(
                                 .background(Color(0xFF4CAF50), CircleShape)
                         )
                         Text(
-                            "TAPEMAN v0.6.2",
+                            "TAPEMAN v0.6.3",
                             style = EngravedCaps.copy(fontSize = 11.sp, color = Color(0xFFF0F3F8), letterSpacing = 1.5.sp),
                         )
                     }

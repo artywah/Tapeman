@@ -2,6 +2,11 @@
 
 All notable changes to Tapeman. Versions follow [semantic versioning](https://semver.org); downloads are on the [releases page](https://github.com/artywah/Tapeman/releases).
 
+## [0.6.3] — 2026-11-27
+
+### Changed
+- **Desktop Source Cleanup:** Removed Spotify Connect from Desktop **Settings → Source**, keeping Desktop focused on **Plex Server** and **Local Folder** (avoiding Spotify Development Mode's 25-user allowlist and restricted playlist APIs).
+
 ## [0.6.2] — 2026-11-27
 
 ### Added

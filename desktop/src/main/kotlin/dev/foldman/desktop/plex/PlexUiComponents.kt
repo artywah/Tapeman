@@ -218,11 +218,6 @@ fun PlexConnectionDialog(
                             Color(0xFF60A5FA),
                             localFolderPath ?: "Play MP3, FLAC, M4A, WAV & OGG files from a folder on your Mac"
                         ),
-                        Triple(
-                            "Spotify",
-                            Color(0xFF1DB954),
-                            if (spotifySignedIn) "Signed in · Spotify Connect Web API" else "Connect via Spotify PKCE or Bearer token"
-                        ),
                     )
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         sources.forEach { (label, accent, desc) ->
