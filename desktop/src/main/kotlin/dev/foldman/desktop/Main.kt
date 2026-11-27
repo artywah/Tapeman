@@ -1087,125 +1087,78 @@ fun TapemanDesktopApp(
                         horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        // Left Pane: Source Switcher + Active Browser
-                        Column(
+                        // Left Pane: Active Source Browser (full height)
+                        Box(
                             modifier = Modifier
                                 .weight(1.05f)
                                 .fillMaxHeight()
                         ) {
-                            // Source Switcher Pill Bar
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(bottom = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "SOURCE:",
-                                    color = Color(0xFF727680),
-                                    fontSize = 9.5.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.sp
-                                )
-                                DesktopSource.entries.forEach { src ->
-                                    val isSelected = src == activeSource
-                                    val accent = when (src) {
-                                        DesktopSource.PLEX -> Color(0xFFE5A00D)
-                                        DesktopSource.LOCAL -> Color(0xFF60A5FA)
-                                        DesktopSource.SPOTIFY -> Color(0xFF1DB954)
-                                    }
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .background(if (isSelected) accent.copy(alpha = 0.16f) else Color(0xFF17181C))
-                                            .border(
-                                                1.dp,
-                                                if (isSelected) accent else Color(0xFF2B2E38),
-                                                RoundedCornerShape(6.dp)
-                                            )
-                                            .clickable { selectDesktopSource(src) }
-                                            .padding(horizontal = 10.dp, vertical = 5.dp)
-                                    ) {
-                                        Text(
-                                            text = src.label,
-                                            color = if (isSelected) accent else Color(0xFFA0A4AE),
-                                            fontSize = 11.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                        )
-                                    }
+                            when (activeSource) {
+                                DesktopSource.PLEX -> {
+                                    PlexMusicBrowser(
+                                        client = plexClient,
+                                        currentConfig = savedConfig,
+                                        isSonicDjActive = isSonicDjActive,
+                                        onToggleSonicDj = ::toggleSonicDj,
+                                        onSwitchLibrary = { newSecId, newSecName ->
+                                            savedConfig?.let { cfg ->
+                                                val updated = cfg.copy(libraryName = newSecName, librarySectionId = newSecId)
+                                                authService.saveConfig(updated)
+                                                savedConfig = updated
+                                                plexClient.sectionId = newSecId
+                                            }
+                                        },
+                                        onTrackSelected = { track, queue, album ->
+                                            if (isSonicDjActive) {
+                                                isHolidaySonicSession = plexClient.isHolidayTitleOrAlbum(track.title, album.title)
+                                                playPlexTrack(track, album, listOf(track), 0)
+                                            } else {
+                                                val idx = queue.indexOfFirst { it.uri == track.uri }.coerceAtLeast(0)
+                                                playPlexTrack(track, album, queue, idx)
+                                            }
+                                        },
+                                        onPlayAlbumDirectly = ::playAlbumDirectly,
+                                        onOpenConnectDialog = { showPlexDialog = true },
+                                        activeTrackUri = activeTrackUrl,
+                                        navigateToAlbumRequest = navigateToAlbumRequest,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
                                 }
-                            }
-
-                            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                                when (activeSource) {
-                                    DesktopSource.PLEX -> {
-                                        PlexMusicBrowser(
-                                            client = plexClient,
-                                            currentConfig = savedConfig,
-                                            isSonicDjActive = isSonicDjActive,
-                                            onToggleSonicDj = ::toggleSonicDj,
-                                            onSwitchLibrary = { newSecId, newSecName ->
-                                                savedConfig?.let { cfg ->
-                                                    val updated = cfg.copy(libraryName = newSecName, librarySectionId = newSecId)
-                                                    authService.saveConfig(updated)
-                                                    savedConfig = updated
-                                                    plexClient.sectionId = newSecId
-                                                }
-                                            },
-                                            onTrackSelected = { track, queue, album ->
-                                                if (isSonicDjActive) {
-                                                    isHolidaySonicSession = plexClient.isHolidayTitleOrAlbum(track.title, album.title)
-                                                    playPlexTrack(track, album, listOf(track), 0)
-                                                } else {
-                                                    val idx = queue.indexOfFirst { it.uri == track.uri }.coerceAtLeast(0)
-                                                    playPlexTrack(track, album, queue, idx)
-                                                }
-                                            },
-                                            onPlayAlbumDirectly = ::playAlbumDirectly,
-                                            onOpenConnectDialog = { showPlexDialog = true },
-                                            activeTrackUri = activeTrackUrl,
-                                            navigateToAlbumRequest = navigateToAlbumRequest,
-                                            modifier = Modifier.fillMaxSize()
-                                        )
-                                    }
-                                    DesktopSource.LOCAL -> {
-                                        DesktopLocalBrowser(
-                                            activeFolder = localFolder,
-                                            tracks = localTracks,
-                                            activeTrackUri = activeTrackUrl,
-                                            onPickFolder = {
-                                                mechSounds.keyDown()
-                                                DesktopLocalLibrary.pickFolder()?.let { chosen ->
-                                                    DesktopLocalLibrary.saveFolder(chosen)
-                                                    localFolder = chosen
-                                                }
-                                            },
-                                            onTrackSelected = { track, queue, idx ->
-                                                playLocalTrack(track, queue, idx)
-                                            },
-                                            modifier = Modifier.fillMaxSize()
-                                        )
-                                    }
-                                    DesktopSource.SPOTIFY -> {
-                                        DesktopSpotifyBrowser(
-                                            client = spotifyClient,
-                                            activeTrackUri = spotifyPlayback?.trackUri,
-                                            navigateToCollectionRequest = navigateToSpotifyRequest,
-                                            onSignedInChanged = { spotifySignedIn = it },
-                                            onPlayTrack = { col, track, idx ->
-                                                currentSpotifyCollection = col
-                                                mechSounds.keyDown()
-                                                slideTapeIn()
-                                                scope.launch {
-                                                    spotifyClient.startPlayback(col.uri, idx)
-                                                    spotifyPlayback = spotifyClient.getPlaybackState()
-                                                }
-                                            },
-                                            modifier = Modifier.fillMaxSize()
-                                        )
-                                    }
+                                DesktopSource.LOCAL -> {
+                                    DesktopLocalBrowser(
+                                        activeFolder = localFolder,
+                                        tracks = localTracks,
+                                        activeTrackUri = activeTrackUrl,
+                                        onPickFolder = {
+                                            mechSounds.keyDown()
+                                            DesktopLocalLibrary.pickFolder()?.let { chosen ->
+                                                DesktopLocalLibrary.saveFolder(chosen)
+                                                localFolder = chosen
+                                            }
+                                        },
+                                        onTrackSelected = { track, queue, idx ->
+                                            playLocalTrack(track, queue, idx)
+                                        },
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+                                DesktopSource.SPOTIFY -> {
+                                    DesktopSpotifyBrowser(
+                                        client = spotifyClient,
+                                        activeTrackUri = spotifyPlayback?.trackUri,
+                                        navigateToCollectionRequest = navigateToSpotifyRequest,
+                                        onSignedInChanged = { spotifySignedIn = it },
+                                        onPlayTrack = { col, track, idx ->
+                                            currentSpotifyCollection = col
+                                            mechSounds.keyDown()
+                                            slideTapeIn()
+                                            scope.launch {
+                                                spotifyClient.startPlayback(col.uri, idx)
+                                                spotifyPlayback = spotifyClient.getPlaybackState()
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxSize()
+                                    )
                                 }
                             }
                         }
@@ -1514,6 +1467,20 @@ fun TapemanDesktopApp(
                     currentConfig = savedConfig,
                     keySoundsEnabled = keySoundsEnabled,
                     deviceService = deviceService,
+                    activeSourceLabel = activeSource.label,
+                    onSelectSourceLabel = { label ->
+                        DesktopSource.entries.firstOrNull { it.label == label }?.let(::selectDesktopSource)
+                    },
+                    localFolderPath = localFolder?.absolutePath,
+                    onPickLocalFolder = {
+                        mechSounds.keyDown()
+                        DesktopLocalLibrary.pickFolder()?.let { chosen ->
+                            DesktopLocalLibrary.saveFolder(chosen)
+                            localFolder = chosen
+                            selectDesktopSource(DesktopSource.LOCAL)
+                        }
+                    },
+                    spotifySignedIn = spotifySignedIn,
                     onToggleKeySounds = { updateKeySounds(it) },
                     onConnected = { newConfig ->
                         savedConfig = newConfig

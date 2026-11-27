@@ -92,12 +92,18 @@ fun PlexConnectionDialog(
     currentConfig: PlexSavedConfig?,
     keySoundsEnabled: Boolean,
     deviceService: DeviceDiscoveryService? = null,
+    activeSourceLabel: String = "Plex Server",
+    onSelectSourceLabel: (String) -> Unit = {},
+    localFolderPath: String? = null,
+    onPickLocalFolder: () -> Unit = {},
+    spotifySignedIn: Boolean = false,
     onToggleKeySounds: (Boolean) -> Unit,
     onConnected: (PlexSavedConfig) -> Unit,
     onDisconnect: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
+    var settingsTab by remember { mutableStateOf(if (currentConfig != null) "Source" else "Plex & Audio") }
     var isPolling by remember { mutableStateOf(false) }
     var activePin by remember { mutableStateOf<PlexPin?>(null) }
     var pollSeconds by remember { mutableStateOf(0) }
@@ -165,9 +171,114 @@ fun PlexConnectionDialog(
                     )
                 }
 
+                Spacer(Modifier.height(12.dp))
+
+                // Settings Tabs: Source | Plex & Audio
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf("Source", "Plex & Audio").forEach { tabName ->
+                        val selected = settingsTab == tabName
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(if (selected) Color(0xFFE5A00D) else Color(0xFF22252C))
+                                .clickable { settingsTab = tabName }
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = tabName,
+                                color = if (selected) Color.Black else Color(0xFFB0B4BE),
+                                fontSize = 11.5.sp,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+
                 Spacer(Modifier.height(16.dp))
 
-                if (currentConfig != null) {
+                if (settingsTab == "Source") {
+                    Text(
+                        text = "Choose where Tapeman browses and plays your music:",
+                        color = Color(0xFFA0A4AE),
+                        fontSize = 11.5.sp
+                    )
+                    Spacer(Modifier.height(12.dp))
+
+                    val sources = listOf(
+                        Triple(
+                            "Plex Server",
+                            Color(0xFFE5A00D),
+                            if (currentConfig != null) "Connected to ${currentConfig.serverName.ifBlank { "Plex" }} · ${currentConfig.libraryName}" else "Not connected · Configure in Plex & Audio tab"
+                        ),
+                        Triple(
+                            "Local Folder",
+                            Color(0xFF60A5FA),
+                            localFolderPath ?: "Play MP3, FLAC, M4A, WAV & OGG files from a folder on your Mac"
+                        ),
+                        Triple(
+                            "Spotify",
+                            Color(0xFF1DB954),
+                            if (spotifySignedIn) "Signed in · Spotify Connect Web API" else "Connect via Spotify PKCE or Bearer token"
+                        ),
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        sources.forEach { (label, accent, desc) ->
+                            val isSelected = activeSourceLabel == label
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSelected) accent.copy(alpha = 0.14f) else Color(0xFF1E2127))
+                                    .border(
+                                        1.dp,
+                                        if (isSelected) accent else Color(0xFF333842),
+                                        RoundedCornerShape(8.dp)
+                                    )
+                                    .clickable {
+                                        onSelectSourceLabel(label)
+                                        onDismiss()
+                                    }
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = label,
+                                        color = if (isSelected) accent else Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    )
+                                    Spacer(Modifier.height(2.dp))
+                                    Text(
+                                        text = desc,
+                                        color = Color(0xFF8E93A0),
+                                        fontSize = 11.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                if (label == "Local Folder") {
+                                    Spacer(Modifier.width(8.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(5.dp))
+                                            .background(Color(0xFF282C36))
+                                            .clickable { onPickLocalFolder() }
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Text("Browse", color = Color(0xFF60A5FA), fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                } else if (isSelected) {
+                                    Text("ACTIVE", color = accent, fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                } else if (currentConfig != null) {
                     // Already connected info box
                     Box(
                         modifier = Modifier
