@@ -2,6 +2,26 @@
 
 All notable changes to Tapeman. Versions follow [semantic versioning](https://semver.org); downloads are on the [releases page](https://github.com/artywah/Tapeman/releases).
 
+## [0.6.1] — 2026-11-27
+
+### Added
+- **Desktop Multi-Source Support (`Settings → Source`):**
+  - Added **Local Folder** source with native macOS folder picker, recursive audio scanner (`.mp3`, `.flac`, `.m4a`, `.aac`, `.wav`, `.ogg`, `.opus`, `.aiff`, `.alac`), search filtering, and full tape-deck playback.
+  - Added **Spotify Connect** source with browser PKCE login (`http://127.0.0.1:18492/callback`) or Bearer token, Playlists & Saved Albums browsing, live playback/artwork polling, and full tape-deck transport control.
+  - Placed the **Source** switcher inside **Settings** (`Source` | `Plex & Audio` tabs) so the library browser keeps its full height.
+- **Navigation & Now Playing:**
+  - Clickable artist name (`Artist ›`) in the Desktop album header to jump straight to that artist's discography.
+  - Clickable Now Playing card on both Desktop and Android to jump back to the active track's source album (or Spotify collection).
+
+### Fixed
+- **Plex Track Playback (`HTTP 500` Fix):** Appended `download=1` to Plex `/library/parts/...` stream URLs on both Desktop and Android, fixing playback failures on albums that previously returned HTTP 500.
+- **Sonic DJ Continuity & Theme Locking:**
+  - Normalized title deduplication so Sonic DJ never replays the same song from a different album.
+  - Locked seasonal/thematic genres & styles (such as `Christmas` / `Holiday`) for the duration of a Sonic DJ session so holiday playlists stay festive.
+  - Hid Plex-powered Sonic DJ and Sonic Radio controls when using non-Plex sources.
+  - Fixed Android `PlaybackService` Sonic DJ playback start when ExoPlayer has reached `STATE_ENDED`.
+- **UI Polish:** Hid `· 0` year labels on albums without year metadata.
+
 ## [0.5.0] — 2026-11-07
 
 ### Added
